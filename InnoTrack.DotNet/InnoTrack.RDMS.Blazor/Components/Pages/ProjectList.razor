@@ -1,0 +1,271 @@
+@page "/projects"
+@attribute [Authorize(Roles = "Super Admin,System Admin,Project Manager,Team Member")]
+@inject ProjectApiService ProjectApiService
+@inject NavigationManager Navigation
+@inject AuthState AuthState
+
+<PageTitle>Projects</PageTitle>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <div>
+        <h1 class="h3 mb-1">Projects</h1>
+        <p class="text-muted mb-0">Track and manage research projects</p>
+    </div>
+    @if (canManageProjects)
+    {
+        <button class="btn btn-primary" @onclick="GoToCreate">+ New Project</button>
+    }
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading projects...</em></p>
+}
+else if (projects.Count == 0)
+{
+    <div class="alert alert-info">No projects found for your account.</div>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-md-6 col-xl">
+            <div class="card h-100"><div class="card-body"><div class="text-muted small">Total Projects</div><div class="display-6 fw-bold">@filteredProjects.Count()</div></div></div>
+        </div>
+        <div class="col-md-6 col-xl">
+            <div class="card h-100"><div class="card-body"><div class="text-muted small">Active</div><div class="display-6 fw-bold">@filteredProjects.Count(x => x.Status == "Active")</div></div></div>
+        </div>
+        <div class="col-md-6 col-xl">
+            <div class="card h-100"><div class="card-body"><div class="text-muted small">On Hold</div><div class="display-6 fw-bold">@filteredProjects.Count(x => x.Status == "OnHold")</div></div></div>
+        </div>
+        <div class="col-md-6 col-xl">
+            <div class="card h-100"><div class="card-body"><div class="text-muted small">Completed</div><div class="display-6 fw-bold">@filteredProjects.Count(x => x.Status == "Completed")</div></div></div>
+        </div>
+        <div class="col-md-6 col-xl">
+            <div class="card h-100"><div class="card-body"><div class="text-muted small">At Risk</div><div class="display-6 fw-bold">@filteredProjects.Count(x => x.EndDate < DateTime.Today && x.Status != "Completed")</div></div></div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg-5">
+                    <label class="form-label">Search</label>
+                    <input class="form-control" placeholder="Search projects..." @bind="searchText" />
+                </div>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" @bind="statusFilter">
+                        <option value="">All</option>
+                        <option>Draft</option>
+                        <option>Active</option>
+                        <option>OnHold</option>
+                        <option>Completed</option>
+                        <option>Cancelled</option>
+                    </select>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" @bind="priorityFilter">
+                        <option value="">All</option>
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                        <option>Critical</option>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-3 d-flex gap-2 justify-content-lg-end">
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-primary" @onclick="ToggleView">@(isGridView ? "List" : "Grid")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (isGridView)
+    {
+        <div class="row g-3">
+            @foreach (var project in filteredProjects)
+            {
+                <div class="col-12 col-md-6 col-xl-4">
+                    <div class="card h-100 shadow-sm project-card" style="cursor: pointer;" @onclick="(() => OpenDetails(project.Id))">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <StatusBadge Status="@project.Status" />
+                                <PriorityBadge Priority="@project.Priority" />
+                            </div>
+                            <h5 class="mb-1">@project.Title</h5>
+                            <p class="text-muted small mb-2">@Shorten(project.Description, 96)</p>
+                            <div class="mb-2">
+                                <ProgressBar Total="@project.TotalTasks" Completed="@project.CompletedTasks" />
+                                <small class="text-muted">@project.CompletedTasks / @project.TotalTasks tasks</small>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center small text-muted">
+                                <span>Members: @project.MemberCount</span>
+                                <span class="@(project.EndDate < DateTime.Today && project.Status != "Completed" ? "text-danger fw-semibold" : string.Empty)">@project.EndDate.ToString("MMM dd, yyyy")</span>
+                            </div>
+                        </div>
+                        @if (canManageProjects)
+                        {
+                            <div class="card-footer bg-transparent d-flex justify-content-end gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" @onclick:stopPropagation="true" @onclick="(() => OpenEdit(project.Id))">Edit</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick:stopPropagation="true" @onclick="(() => AskDelete(project.Id, project.Title))">Delete</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Project Title</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Progress</th>
+                        <th>Members</th>
+                        <th>End Date</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var project in filteredProjects)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@project.Title</div>
+                                <small class="text-muted">@Shorten(project.Description, 72)</small>
+                            </td>
+                            <td><StatusBadge Status="@project.Status" /></td>
+                            <td><PriorityBadge Priority="@project.Priority" /></td>
+                            <td style="min-width: 180px;"><ProgressBar Total="@project.TotalTasks" Completed="@project.CompletedTasks" /></td>
+                            <td>@project.MemberCount</td>
+                            <td class="@(project.EndDate < DateTime.Today && project.Status != "Completed" ? "text-danger fw-semibold" : string.Empty)">@project.EndDate.ToString("MMM dd, yyyy")</td>
+                            <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary me-1" @onclick="(() => OpenDetails(project.Id))">Details</button>
+                                @if (canManageProjects)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary me-1" @onclick="(() => OpenEdit(project.Id))">Edit</button>
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="(() => AskDelete(project.Id, project.Title))">Delete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+<ConfirmModal IsOpen="isDeleteModalOpen"
+              Title="Delete Project"
+              Message="@deleteMessage"
+              ConfirmText="Delete"
+              IsDanger="true"
+              OnConfirm="DeleteSelectedProjectAsync"
+              OnCancel="CloseDeleteModal" />
+
+@code {
+    private readonly List<ProjectItem> projects = [];
+    private IEnumerable<ProjectItem> filteredProjects => projects
+        .Where(p => string.IsNullOrWhiteSpace(searchText)
+            || p.Title.Contains(searchText, StringComparison.OrdinalIgnoreCase)
+            || (p.Description?.Contains(searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(p => string.IsNullOrWhiteSpace(statusFilter) || p.Status == statusFilter)
+        .Where(p => string.IsNullOrWhiteSpace(priorityFilter) || p.Priority == priorityFilter);
+
+    private bool isLoading = true;
+    private bool canManageProjects;
+    private string? errorMessage;
+    private string searchText = string.Empty;
+    private string statusFilter = string.Empty;
+    private string priorityFilter = string.Empty;
+    private bool isGridView = true;
+
+    private bool isDeleteModalOpen;
+    private Guid selectedProjectId;
+    private string deleteMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        canManageProjects = AuthState.HasRole("Project Manager");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            projects.Clear();
+            projects.AddRange(await ProjectApiService.GetProjectsAsync());
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void OpenDetails(Guid projectId) => Navigation.NavigateTo($"/projects/{projectId}");
+
+    private void OpenEdit(Guid projectId) => Navigation.NavigateTo($"/projects/edit/{projectId}");
+
+    private void GoToCreate() => Navigation.NavigateTo("/projects/create");
+
+    private void ToggleView() => isGridView = !isGridView;
+
+    private void ClearFilters()
+    {
+        searchText = string.Empty;
+        statusFilter = string.Empty;
+        priorityFilter = string.Empty;
+    }
+
+    private void AskDelete(Guid projectId, string title)
+    {
+        selectedProjectId = projectId;
+        deleteMessage = $"Delete '{title}'? This action cannot be undone.";
+        isDeleteModalOpen = true;
+    }
+
+    private Task CloseDeleteModal()
+    {
+        isDeleteModalOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task DeleteSelectedProjectAsync()
+    {
+        try
+        {
+            await ProjectApiService.DeleteProjectAsync(selectedProjectId);
+            isDeleteModalOpen = false;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            isDeleteModalOpen = false;
+        }
+    }
+
+    private static string Shorten(string? value, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "No description";
+        return value.Length <= max ? value : value[..max] + "...";
+    }
+}

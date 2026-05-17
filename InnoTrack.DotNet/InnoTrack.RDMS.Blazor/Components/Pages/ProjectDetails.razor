@@ -1,0 +1,548 @@
+@page "/projects/{ProjectId:guid}"
+@attribute [Authorize(Roles = "Super Admin,System Admin,Project Manager,Team Member")]
+@inject ProjectApiService ProjectApiService
+@inject TaskApiService TaskApiService
+@inject AuthState AuthState
+@inject NavigationManager Navigation
+
+<PageTitle>Project Details</PageTitle>
+
+<button class="btn btn-link ps-0 mb-3" @onclick="NavigateToList">&larr; Back to Projects</button>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading project details...</em></p>
+}
+else if (project is null)
+{
+    <div class="alert alert-warning">Project not found.</div>
+}
+else
+{
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                <div>
+                    <div class="d-flex gap-2 mb-2">
+                        <StatusBadge Status="@project.Status" />
+                        <PriorityBadge Priority="@project.Priority" />
+                    </div>
+                    <h1 class="h3 mb-1">@project.Title</h1>
+                    <p class="text-muted mb-2">@project.Description</p>
+                    <small class="text-muted">@project.StartDate.ToString("MMM dd, yyyy") - @project.EndDate.ToString("MMM dd, yyyy") • @members.Count members</small>
+                </div>
+                @if (canManageProjects)
+                {
+                    <button class="btn btn-outline-secondary" @onclick="NavigateToEdit">Edit</button>
+                }
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3">
+        @foreach (var tab in tabs)
+        {
+            <li class="nav-item">
+                <button type="button" class="nav-link @(activeTab == tab ? "active" : string.Empty)" @onclick="(() => SetTab(tab))">@tab</button>
+            </li>
+        }
+    </ul>
+
+    @if (activeTab == "Overview")
+    {
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body"><div class="small text-muted">Total Tasks</div><div class="h3 mb-0">@summary?.TotalTasks</div></div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body"><div class="small text-muted">Completed</div><div class="h3 mb-0">@summary?.CompletedTasks</div></div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body"><div class="small text-muted">Overdue</div><div class="h3 mb-0">@summary?.OverdueTasks</div></div></div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card"><div class="card-body"><div class="small text-muted">Members</div><div class="h3 mb-0">@summary?.MemberCount</div></div></div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3">Progress</h6>
+                        <ProgressBar Total="@(summary?.TotalTasks ?? 0)" Completed="@(summary?.CompletedTasks ?? 0)" />
+                        <div class="small text-muted mt-2">@summary?.CompletedTasks of @summary?.TotalTasks tasks complete</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="mb-3">Recent Activity</h6>
+                        <ul class="list-group list-group-flush">
+                            @foreach (var item in BuildActivityItems().Take(5))
+                            {
+                                <li class="list-group-item px-0 py-2 small">
+                                    <div>@item.Text</div>
+                                    <div class="text-muted">@item.When.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (activeTab == "Tasks")
+    {
+        <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between mb-3">
+            <div class="d-flex gap-2 align-items-end">
+                <div>
+                    <label class="form-label">Assignee</label>
+                    <select class="form-select" @bind="taskAssigneeFilter">
+                        <option value="">All</option>
+                        @foreach (var member in members)
+                        {
+                            <option value="@member.UserId.ToString()">@member.UserId</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" @bind="taskPriorityFilter">
+                        <option value="">All</option>
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                        <option>Critical</option>
+                    </select>
+                </div>
+            </div>
+            @if (canManageProjects)
+            {
+                <button class="btn btn-primary" @onclick="OpenCreateTask">+ Add Task</button>
+            }
+        </div>
+
+        <div class="row g-3">
+            @foreach (var col in taskColumns)
+            {
+                <div class="col-12 col-md-6 col-xl">
+                    <div class="card h-100">
+                        <div class="card-header @GetColumnHeaderClass(col)">
+                            <strong>@FormatTaskStatus(col)</strong> (@GetColumnTasks(col).Count)
+                        </div>
+                        <div class="card-body" style="min-height: 420px;">
+                            @if (GetColumnTasks(col).Count == 0)
+                            {
+                                <div class="border border-2 border-dashed rounded p-3 text-center text-muted small">No tasks here</div>
+                            }
+                            else
+                            {
+                                @foreach (var task in GetColumnTasks(col))
+                                {
+                                    <div class="border rounded p-2 mb-2 bg-white shadow-sm">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <div class="fw-semibold small">@task.Title</div>
+                                            <PriorityBadge Priority="@task.Priority" />
+                                        </div>
+                                        <div class="small text-muted mb-1">@Shorten(task.Description, 70)</div>
+                                        <div class="d-flex justify-content-between align-items-center small">
+                                            <span class="@(task.DueDate.Date < DateTime.Today && task.Status != "Done" ? "text-danger fw-semibold" : "text-muted")">Due: @task.DueDate.ToString("MMM dd")</span>
+                                            <button class="btn btn-sm btn-link p-0" @onclick="(() => OpenTaskDetails(task))">Open</button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else if (activeTab == "Milestones")
+    {
+        <div class="card">
+            <div class="card-body">
+                <h6 class="mb-3">Milestone Timeline</h6>
+                @if (milestones.Count == 0)
+                {
+                    <p class="text-muted">No milestones yet.</p>
+                }
+                else
+                {
+                    <div class="border-start border-2 ps-3">
+                        @foreach (var milestone in milestones.OrderBy(x => x.DueDate))
+                        {
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <div class="fw-semibold">@milestone.Title</div>
+                                        <small class="text-muted">@milestone.DueDate.ToString("MMM dd, yyyy")</small>
+                                    </div>
+                                    <div class="d-flex gap-1">
+                                        @if (milestone.IsCompleted)
+                                        {
+                                            <span class="badge bg-success">Completed</span>
+                                        }
+                                        else if (canManageProjects)
+                                        {
+                                            <button class="btn btn-sm btn-outline-success" @onclick="(() => CompleteMilestoneAsync(milestone.Id))">✓</button>
+                                        }
+                                        @if (canManageProjects)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="(() => DeleteMilestoneAsync(milestone.Id))">🗑</button>
+                                        }
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(milestone.Description))
+                                {
+                                    <div class="small text-muted">@milestone.Description</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (canManageProjects)
+                {
+                    <hr />
+                    <label class="form-label">New Milestone</label>
+                    <input class="form-control mb-2" placeholder="Title" @bind="newMilestoneTitle" />
+                    <input class="form-control mb-2" placeholder="Description" @bind="newMilestoneDescription" />
+                    <InputDate class="form-control mb-2" @bind-Value="newMilestoneDueDate" />
+                    <button class="btn btn-sm btn-primary" @onclick="CreateMilestoneAsync">+ Add Milestone</button>
+                }
+            </div>
+        </div>
+    }
+    else if (activeTab == "Members")
+    {
+        <div class="card">
+            <div class="card-body">
+                <h6 class="mb-3">Members</h6>
+                @if (members.Count == 0)
+                {
+                    <p class="text-muted">No members assigned.</p>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-2 mb-3">
+                        @foreach (var member in members)
+                        {
+                            <div class="border rounded p-2 d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold small">@member.UserId</div>
+                                    <span class="badge @GetMemberRoleClass(member.MemberRole)">@member.MemberRole</span>
+                                </div>
+                                @if (canManageProjects)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="(() => RemoveMemberAsync(member.UserId))">Remove</button>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (canManageProjects)
+                {
+                    <div class="border-top pt-3">
+                        <label class="form-label">Add Member (User Id)</label>
+                        <input class="form-control mb-2" @bind="newMemberUserIdText" placeholder="User GUID" />
+                        <label class="form-label">Role</label>
+                        <select class="form-select mb-2" @bind="newMemberRole">
+                            <option>Lead</option>
+                            <option>Contributor</option>
+                            <option>Observer</option>
+                        </select>
+                        <button class="btn btn-sm btn-primary" @onclick="AddMemberAsync">+ Add Member</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else if (activeTab == "Activity")
+    {
+        <div class="card">
+            <div class="card-body">
+                <h6 class="mb-3">Activity Feed</h6>
+                <ul class="list-group list-group-flush">
+                    @foreach (var item in BuildActivityItems().Take(activityLimit))
+                    {
+                        <li class="list-group-item px-0 py-2">
+                            <div class="small">@item.Text</div>
+                            <div class="text-muted small">@item.When.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</div>
+                        </li>
+                    }
+                </ul>
+                @if (BuildActivityItems().Count > activityLimit)
+                {
+                    <button class="btn btn-link ps-0 mt-2" @onclick="LoadMoreActivity">Load more</button>
+                }
+            </div>
+        </div>
+    }
+}
+
+<CreateTaskModal IsOpen="isCreateTaskOpen"
+                 ProjectId="ProjectId"
+                 ProjectStartDate="project?.StartDate ?? DateTime.Today"
+                 ProjectEndDate="project?.EndDate ?? DateTime.Today"
+                 Members="members"
+                 OnClose="CloseCreateTask"
+                 OnCreated="OnTaskCreated" />
+
+<TaskDetailModal IsOpen="isTaskDetailOpen"
+                 Task="selectedTask"
+                 OnClose="CloseTaskDetail"
+                 OnUpdated="OnTaskUpdated" />
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private ProjectItem? project;
+    private ProjectSummaryItem? summary;
+    private List<ProjectTaskItem> tasks = [];
+    private List<ProjectMemberItem> members = [];
+    private List<MilestoneItem> milestones = [];
+
+    private bool isLoading = true;
+    private string? errorMessage;
+    private bool canManageProjects;
+
+    private bool isCreateTaskOpen;
+    private bool isTaskDetailOpen;
+    private ProjectTaskItem? selectedTask;
+
+    private string newMemberUserIdText = string.Empty;
+    private string newMemberRole = "Contributor";
+
+    private string newMilestoneTitle = string.Empty;
+    private string? newMilestoneDescription;
+    private DateTime newMilestoneDueDate = DateTime.Today.AddDays(7);
+    private string activeTab = "Overview";
+    private readonly string[] tabs = ["Overview", "Tasks", "Milestones", "Members", "Activity"];
+    private string taskAssigneeFilter = string.Empty;
+    private string taskPriorityFilter = string.Empty;
+    private int activityLimit = 10;
+    private readonly string[] taskColumns = ["Todo", "InProgress", "UnderReview", "Done", "Blocked"];
+
+    protected override async Task OnInitializedAsync()
+    {
+        canManageProjects = AuthState.HasRole("Project Manager");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            project = await ProjectApiService.GetProjectByIdAsync(ProjectId);
+            summary = await ProjectApiService.GetProjectSummaryAsync(ProjectId);
+            tasks = await TaskApiService.GetTasksByProjectAsync(ProjectId);
+            members = await ProjectApiService.GetProjectMembersAsync(ProjectId);
+            milestones = await ProjectApiService.GetMilestonesAsync(ProjectId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetTab(string tab) => activeTab = tab;
+
+    private void OpenCreateTask() => isCreateTaskOpen = true;
+
+    private Task CloseCreateTask()
+    {
+        isCreateTaskOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnTaskCreated()
+    {
+        isCreateTaskOpen = false;
+        await LoadAsync();
+    }
+
+    private void OpenTaskDetails(ProjectTaskItem task)
+    {
+        selectedTask = task;
+        isTaskDetailOpen = true;
+    }
+
+    private Task CloseTaskDetail()
+    {
+        selectedTask = null;
+        isTaskDetailOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task OnTaskUpdated()
+    {
+        await LoadAsync();
+    }
+
+    private async Task RemoveMemberAsync(Guid userId)
+    {
+        try
+        {
+            await ProjectApiService.RemoveProjectMemberAsync(ProjectId, userId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task AddMemberAsync()
+    {
+        if (!Guid.TryParse(newMemberUserIdText, out var userId))
+        {
+            errorMessage = "Invalid member User Id.";
+            return;
+        }
+
+        try
+        {
+            await ProjectApiService.AddProjectMemberAsync(ProjectId, new AddProjectMemberRequestModel
+            {
+                UserId = userId,
+                MemberRole = newMemberRole
+            });
+
+            newMemberUserIdText = string.Empty;
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task CreateMilestoneAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newMilestoneTitle))
+        {
+            errorMessage = "Milestone title is required.";
+            return;
+        }
+
+        try
+        {
+            await ProjectApiService.CreateMilestoneAsync(ProjectId, new CreateMilestoneRequestModel
+            {
+                Title = newMilestoneTitle,
+                Description = newMilestoneDescription,
+                DueDate = newMilestoneDueDate
+            });
+
+            newMilestoneTitle = string.Empty;
+            newMilestoneDescription = null;
+            newMilestoneDueDate = DateTime.Today.AddDays(7);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task CompleteMilestoneAsync(Guid milestoneId)
+    {
+        try
+        {
+            await ProjectApiService.CompleteMilestoneAsync(milestoneId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteMilestoneAsync(Guid milestoneId)
+    {
+        try
+        {
+            await ProjectApiService.DeleteMilestoneAsync(milestoneId);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private List<ProjectTaskItem> GetColumnTasks(string status)
+    {
+        return tasks
+            .Where(x => (string.IsNullOrWhiteSpace(taskAssigneeFilter) || x.AssignedToUserId.ToString() == taskAssigneeFilter)
+                        && (string.IsNullOrWhiteSpace(taskPriorityFilter) || x.Priority == taskPriorityFilter)
+                        && x.Status == status)
+            .OrderBy(x => x.DueDate)
+            .ToList();
+    }
+
+    private static string FormatTaskStatus(string status) => status switch
+    {
+        "InProgress" => "In Progress",
+        "UnderReview" => "Under Review",
+        _ => status
+    };
+
+    private static string GetColumnHeaderClass(string status) => status switch
+    {
+        "Todo" => "bg-light",
+        "InProgress" => "bg-primary-subtle",
+        "UnderReview" => "bg-warning-subtle",
+        "Done" => "bg-success-subtle",
+        "Blocked" => "bg-danger-subtle",
+        _ => "bg-light"
+    };
+
+    private static string GetMemberRoleClass(string role) => role switch
+    {
+        "Lead" => "text-bg-primary",
+        "Contributor" => "text-bg-info",
+        _ => "text-bg-secondary"
+    };
+
+    private static string Shorten(string? value, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "No description";
+        return value.Length <= max ? value : value[..max] + "...";
+    }
+
+    private List<(DateTime When, string Text)> BuildActivityItems()
+    {
+        var items = new List<(DateTime, string)>();
+        if (project is not null)
+        {
+            items.Add((project.StartDate, "Project timeline started"));
+        }
+
+        items.AddRange(tasks.Select(x => (x.CompletedAt ?? x.DueDate, $"Task updated: {x.Title} ({FormatTaskStatus(x.Status)})")));
+        items.AddRange(milestones.Select(x => (x.CompletedAt ?? x.DueDate, $"Milestone {(x.IsCompleted ? "completed" : "scheduled")}: {x.Title}")));
+        return items.OrderByDescending(x => x.Item1).ToList();
+    }
+
+    private void LoadMoreActivity() => activityLimit += 10;
+
+    private void NavigateToEdit() => Navigation.NavigateTo($"/projects/edit/{ProjectId}");
+
+    private void NavigateToList() => Navigation.NavigateTo("/projects");
+}

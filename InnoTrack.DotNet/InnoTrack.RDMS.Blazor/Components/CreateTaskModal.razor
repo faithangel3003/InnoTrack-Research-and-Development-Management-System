@@ -1,0 +1,124 @@
+@inject TaskApiService TaskApiService
+
+@if (IsOpen)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.4);">
+        <div class="modal-dialog modal-md">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Create Task</h5>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(error))
+                    {
+                        <div class="alert alert-danger">@error</div>
+                    }
+
+                    <div class="mb-2">
+                        <label class="form-label">Title *</label>
+                        <input class="form-control" @bind="model.Title" />
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" rows="3" @bind="model.Description"></textarea>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Assignee *</label>
+                        <select class="form-select" @bind="selectedMemberUserId">
+                            <option value="">Select member</option>
+                            @foreach (var member in Members)
+                            {
+                                <option value="@member.UserId">@member.UserId</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Priority *</label>
+                        <select class="form-select" @bind="model.Priority">
+                            <option>Low</option>
+                            <option>Medium</option>
+                            <option>High</option>
+                            <option>Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label">Due Date *</label>
+                        <InputDate class="form-control" @bind-Value="model.DueDate" />
+                        <small class="text-muted">Project window: @ProjectStartDate.ToString("MMM dd, yyyy") to @ProjectEndDate.ToString("MMM dd, yyyy")</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="Close">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CreateAsync" disabled="@isSubmitting">@(isSubmitting ? "Creating..." : "Create Task")</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public DateTime ProjectStartDate { get; set; }
+    [Parameter] public DateTime ProjectEndDate { get; set; }
+    [Parameter] public List<ProjectMemberItem> Members { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnCreated { get; set; }
+
+    private CreateTaskRequestModel model = new();
+    private string selectedMemberUserId = string.Empty;
+    private string? error;
+    private bool isSubmitting;
+
+    private async Task CreateAsync()
+    {
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(model.Title))
+        {
+            error = "Task title is required.";
+            return;
+        }
+
+        if (!Guid.TryParse(selectedMemberUserId, out var assigneeId))
+        {
+            error = "Please select an assignee.";
+            return;
+        }
+
+        if (model.DueDate < ProjectStartDate || model.DueDate > ProjectEndDate)
+        {
+            error = "Due Date must be within project date range.";
+            return;
+        }
+
+        model.AssignedToUserId = assigneeId;
+        isSubmitting = true;
+
+        try
+        {
+            await TaskApiService.CreateTaskAsync(ProjectId, model);
+            model = new CreateTaskRequestModel();
+            selectedMemberUserId = string.Empty;
+            await OnCreated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}

@@ -1,0 +1,147 @@
+@page "/companies"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+<PageTitle>Companies</PageTitle>
+
+<div class="companies-container">
+    <div class="companies-header">
+        <div class="search-and-filters">
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="Search companies..." @onchange="HandleSearchChange" />
+            </div>
+            <div class="filters">
+                <select class="filter-select" @onchange="HandleStatusChange">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                </select>
+                <select class="filter-select" @onchange="HandlePlanChange">
+                    <option value="">All Plans</option>
+                    <option value="Enterprise">Enterprise</option>
+                    <option value="Professional">Professional</option>
+                    <option value="Starter">Starter</option>
+                </select>
+            </div>
+        </div>
+        <button class="btn-add-company" @onclick="HandleAddCompany">
+            <span>+</span> Add Company
+        </button>
+    </div>
+
+    <div class="table-container">
+        <table class="companies-table">
+            <thead>
+                <tr>
+                    <th>COMPANY</th>
+                    <th>EMAIL</th>
+                    <th>INDUSTRY</th>
+                    <th>STATUS</th>
+                    <th>JOINED</th>
+                    <th>ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var company in filteredCompanies)
+                {
+                    <tr>
+                        <td class="company-name"><strong>@company.Name</strong></td>
+                        <td>@company.Email</td>
+                        <td>@company.Industry</td>
+                        <td>
+                            <span class="status-badge">
+                                <span class="status-dot"></span>
+                                @company.Status
+                            </span>
+                        </td>
+                        <td>@company.JoinedDate.ToString("MMM d, yyyy")</td>
+                        <td class="actions-cell">
+                            <button class="action-btn edit-btn" title="Edit"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                            <button class="action-btn delete-btn" title="Delete"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg></button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="table-footer">
+        <span class="showing-text">Showing 1-@filteredCompanies.Count of @companies.Count companies</span>
+        <div class="pagination">
+            <button class="page-btn active">1</button>
+            <button class="page-btn">2</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<CompanyModel> companies = new();
+    private List<CompanyModel> filteredCompanies = new();
+    private string searchQuery = "";
+    private string selectedStatus = "";
+    private string selectedPlan = "";
+
+    protected override Task OnInitializedAsync()
+    {
+        // Sample company data
+        companies = new List<CompanyModel>
+        {
+            new CompanyModel { Name = "ApexLogic Innovations", Email = "mark.villaneuva@apexlogic.com", Industry = "Manufacturing", Status = "Active", JoinedDate = new DateTime(2026, 3, 9), Plan = "Enterprise" },
+            new CompanyModel { Name = "NovoCore Technologies", Email = "daniel.cruz@novacoretech.com", Industry = "Technology", Status = "Active", JoinedDate = new DateTime(2026, 3, 9), Plan = "Professional" },
+            new CompanyModel { Name = "SynapseTech Solutions", Email = "angela.ramos@synapsetech.com", Industry = "", Status = "Active", JoinedDate = new DateTime(2026, 3, 9), Plan = "Starter" },
+            new CompanyModel { Name = "NavalloComps", Email = "roiwilliam59@gmail.com", Industry = "Manufacturing", Status = "Active", JoinedDate = new DateTime(2026, 3, 9), Plan = "Enterprise" },
+            new CompanyModel { Name = "BenzCarl", Email = "benz@gmail.com", Industry = "Technology", Status = "Active", JoinedDate = new DateTime(2026, 3, 9), Plan = "Professional" },
+            new CompanyModel { Name = "Devoro", Email = "dave@devoro.com", Industry = "Finance", Status = "Active", JoinedDate = new DateTime(2026, 3, 8), Plan = "Starter" },
+            new CompanyModel { Name = "MimaChan", Email = "mawibeth@gmail.com", Industry = "Healthcare", Status = "Active", JoinedDate = new DateTime(2026, 3, 8), Plan = "Enterprise" },
+            new CompanyModel { Name = "ProjectIQ", Email = "cocomelon@projectiq.com", Industry = "Education", Status = "Active", JoinedDate = new DateTime(2026, 3, 6), Plan = "Professional" },
+            new CompanyModel { Name = "BrightLoop", Email = "arimenndz@brightloop.com", Industry = "Finance", Status = "Active", JoinedDate = new DateTime(2026, 3, 6), Plan = "Starter" },
+            new CompanyModel { Name = "Mini Con", Email = "mario@email.com", Industry = "Technology", Status = "Active", JoinedDate = new DateTime(2026, 3, 1), Plan = "Enterprise" }
+        };
+
+        UpdateFilteredCompanies();
+        return Task.CompletedTask;
+    }
+
+    private void UpdateFilteredCompanies()
+    {
+        filteredCompanies = companies
+            .Where(c => string.IsNullOrEmpty(searchQuery) || c.Name.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+            .Where(c => string.IsNullOrEmpty(selectedStatus) || c.Status.Equals(selectedStatus, StringComparison.OrdinalIgnoreCase))
+            .Where(c => string.IsNullOrEmpty(selectedPlan) || c.Plan.Equals(selectedPlan, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void HandleSearchChange(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? "";
+        UpdateFilteredCompanies();
+    }
+
+    private void HandleStatusChange(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+        UpdateFilteredCompanies();
+    }
+
+    private void HandlePlanChange(ChangeEventArgs e)
+    {
+        selectedPlan = e.Value?.ToString() ?? "";
+        UpdateFilteredCompanies();
+    }
+
+    private void HandleAddCompany()
+    {
+        // TODO: Navigate to add/create company page
+        Navigation.NavigateTo("/companies/create");
+    }
+
+    private class CompanyModel
+    {
+        public string Name { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Industry { get; set; } = "";
+        public string Status { get; set; } = "Active";
+        public DateTime JoinedDate { get; set; }
+        public string Plan { get; set; } = "";
+    }
+}

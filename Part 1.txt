@@ -1,0 +1,217 @@
+User & Role Management Module Prompt
+You are an expert ASP.NET Core and Blazor developer.
+
+Build the complete "User & Role Management" module for a web-based ERP system called:
+"InnoTrack: Research and Development Management System for Innovation and Collaboration"
+
+═══════════════════════════════════════════════
+🛠️ TECH STACK
+═══════════════════════════════════════════════
+- Backend:     ASP.NET Core Web API (C#)
+- Frontend:    Blazor Web App (.NET 8)
+- Database:    MySQL (via XAMPP / phpMyAdmin, local dev)
+- ORM:         Entity Framework Core with Pomelo.EntityFrameworkCore.MySql
+- Auth:        ASP.NET Core Identity + JWT Bearer Tokens
+- Pattern:     Repository Pattern + Service Layer + DTOs
+- API Style:   RESTful
+
+═══════════════════════════════════════════════
+👤 ROLES (RBAC)
+═══════════════════════════════════════════════
+1. SuperAdmin   – Platform-wide control, manages organizations/accounts
+2. SystemAdmin  – Manages users, roles, permissions, system settings
+3. ProjectManager – Manages projects, assigns tasks, views reports
+4. TeamMember   – Views tasks, updates progress, uploads documents
+
+═══════════════════════════════════════════════
+🗄️ DATABASE (MySQL via XAMPP)
+═══════════════════════════════════════════════
+Generate the following MySQL-compatible tables using EF Core Migrations:
+
+1. Users
+   - Id (PK, GUID)
+   - FirstName, LastName
+   - Email (unique)
+   - PasswordHash
+   - RoleId (FK → Roles)
+   - OrganizationId (FK → Organizations)
+   - IsActive (bool)
+   - CreatedAt, UpdatedAt
+
+2. Roles
+   - Id (PK, int)
+   - RoleName (SuperAdmin, SystemAdmin, ProjectManager, TeamMember)
+   - Description
+
+3. Organizations
+   - Id (PK, GUID)
+   - Name
+   - IsActive
+   - CreatedAt
+
+4. AuditLogs
+   - Id (PK, GUID)
+   - UserId (FK)
+   - Action (string)
+   - Module (string)
+   - Timestamp
+   - IPAddress
+
+Use connection string format for XAMPP MySQL:
+"Server=localhost;Port=3306;Database=innotrack_db;User=root;Password=;"
+
+═══════════════════════════════════════════════
+📦 BACKEND — Generate ALL of the following:
+═══════════════════════════════════════════════
+
+1. MODELS
+   - User.cs
+   - Role.cs
+   - Organization.cs
+   - AuditLog.cs
+
+2. DTOs
+   - UserDto.cs (response)
+   - CreateUserDto.cs (request – with validation attributes)
+   - UpdateUserDto.cs
+   - LoginDto.cs
+   - AuthResponseDto.cs (includes JWT token + user info)
+
+3. DB CONTEXT
+   - InnoTrackDbContext.cs (EF Core, MySQL/Pomelo)
+   - Seed data for Roles and a default SuperAdmin user
+
+4. REPOSITORIES (Interface + Implementation)
+   - IUserRepository / UserRepository
+   - IRoleRepository / RoleRepository
+   - IAuditLogRepository / AuditLogRepository
+
+5. SERVICES (Interface + Implementation)
+   - IUserService / UserService
+     → GetAllUsers, GetUserById, CreateUser, UpdateUser,
+       DeactivateUser, ChangeRole
+   - IAuthService / AuthService
+     → Login (returns JWT), HashPassword, ValidateToken
+   - IAuditLogService / AuditLogService
+     → LogAction, GetLogsByUser, GetAllLogs
+
+6. CONTROLLERS (REST API)
+   - AuthController.cs
+     → POST /api/auth/login
+     → POST /api/auth/logout
+   - UsersController.cs
+     → GET    /api/users              [SystemAdmin, SuperAdmin]
+     → GET    /api/users/{id}         [SystemAdmin, SuperAdmin]
+     → POST   /api/users              [SystemAdmin, SuperAdmin]
+     → PUT    /api/users/{id}         [SystemAdmin, SuperAdmin]
+     → PATCH  /api/users/{id}/deactivate  [SuperAdmin]
+     → PATCH  /api/users/{id}/role    [SuperAdmin]
+   - RolesController.cs
+     → GET    /api/roles              [SystemAdmin, SuperAdmin]
+   - AuditLogsController.cs
+     → GET    /api/auditlogs          [SuperAdmin]
+     → GET    /api/auditlogs/{userId} [SuperAdmin, SystemAdmin]
+
+7. SECURITY
+   - JWT generation with expiry (configurable in appsettings.json)
+   - Password hashing using BCrypt
+   - [Authorize(Roles = "...")] on all protected endpoints
+   - Input validation using Data Annotations + ModelState checks
+   - Log every create/update/deactivate action to AuditLogs table
+
+8. PROGRAM.CS / STARTUP CONFIG
+   - Register EF Core with MySQL (Pomelo)
+   - Register JWT Authentication middleware
+   - Register all Services and Repositories via DI
+   - Add Swagger with JWT support (for testing)
+   - CORS policy for Blazor frontend
+
+═══════════════════════════════════════════════
+🖥️ FRONTEND — Blazor Web App
+═══════════════════════════════════════════════
+
+Generate the following Blazor components under /Pages/Admin/:
+
+1. Login.razor
+   - Email + Password form
+   - Calls POST /api/auth/login
+   - Stores JWT in localStorage
+   - Redirects to dashboard based on role
+
+2. UserList.razor  [SystemAdmin, SuperAdmin only]
+   - Searchable, paginated table of all users
+   - Columns: Name, Email, Role, Organization, Status, Actions
+   - Buttons: Edit, Deactivate, Change Role
+
+3. CreateUser.razor  [SystemAdmin, SuperAdmin only]
+   - Form with: FirstName, LastName, Email, Password, Role, Organization
+   - Client-side + server-side validation
+   - Calls POST /api/users
+
+4. EditUser.razor  [SystemAdmin, SuperAdmin only]
+   - Pre-filled form loaded from GET /api/users/{id}
+   - Calls PUT /api/users/{id}
+
+5. AuditLog.razor  [SuperAdmin only]
+   - Table showing: User, Action, Module, Timestamp, IP
+   - Filter by user or date range
+
+6. Shared Components
+   - AuthService.cs (Blazor service to manage JWT token in localStorage)
+   - CustomAuthStateProvider.cs (extends AuthenticationStateProvider)
+   - NavMenu updates to show/hide links based on role
+
+═══════════════════════════════════════════════
+📁 FOLDER STRUCTURE
+═══════════════════════════════════════════════
+
+InnoTrack.API/
+├── Controllers/
+├── Models/
+├── DTOs/
+├── Services/
+│   ├── Interfaces/
+│   └── Implementations/
+├── Repositories/
+│   ├── Interfaces/
+│   └── Implementations/
+├── Data/
+│   └── InnoTrackDbContext.cs
+├── Helpers/
+│   └── JwtHelper.cs
+├── Middleware/
+│   └── AuditMiddleware.cs
+└── Program.cs
+
+InnoTrack.Web/ (Blazor)
+├── Pages/
+│   └── Admin/
+│       ├── Login.razor
+│       ├── UserList.razor
+│       ├── CreateUser.razor
+│       ├── EditUser.razor
+│       └── AuditLog.razor
+├── Services/
+│   ├── AuthService.cs
+│   └── UserApiService.cs
+├── Providers/
+│   └── CustomAuthStateProvider.cs
+└── Shared/
+    └── NavMenu.razor
+
+═══════════════════════════════════════════════
+✅ REQUIREMENTS & NOTES
+═══════════════════════════════════════════════
+- All code must be production-ready, clean, and well-commented
+- Use appsettings.json for all config (JWT secret, DB connection string)
+- DTOs must never expose PasswordHash
+- Every destructive or sensitive action must be audit-logged
+- Return proper HTTP status codes (200, 201, 400, 401, 403, 404)
+- Blazor components must handle loading states and error messages
+- Use HttpClient with JWT Bearer header injection in Blazor
+- Consistent naming convention: PascalCase for C#, camelCase for JSON
+- MySQL XAMPP connection: Server=localhost;Port=3306;
+  Database=innotrack_db;User=root;Password=;
+
+
+  

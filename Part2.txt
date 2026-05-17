@@ -1,0 +1,354 @@
+Project Tracking & Monitoring Module Prompt
+
+Build the complete "Project Tracking & Monitoring" module for a web-based ERP system called:
+"InnoTrack: Research and Development Management System for Innovation and Collaboration"
+
+This module builds on top of the existing User & Role Management module.
+Assume the following already exist:
+- InnoTrackDbContext.cs (EF Core + MySQL/Pomelo)
+- JWT Authentication + RBAC middleware
+- User, Role, Organization models
+- AuthService, Repository Pattern, Service Layer structure
+
+═══════════════════════════════════════════════
+🛠️ TECH STACK
+═══════════════════════════════════════════════
+- Backend:     ASP.NET Core Web API (C#)
+- Frontend:    Blazor Web App (.NET 8)
+- Database:    MySQL (via XAMPP / phpMyAdmin, local dev)
+- ORM:         Entity Framework Core with Pomelo.EntityFrameworkCore.MySql
+- Auth:        ASP.NET Core Identity + JWT Bearer Tokens
+- Pattern:     Repository Pattern + Service Layer + DTOs
+- API Style:   RESTful
+
+═══════════════════════════════════════════════
+👤 ROLE PERMISSIONS FOR THIS MODULE
+═══════════════════════════════════════════════
+- SystemAdmin   → Full read access, monitor all projects
+- ProjectManager→ Create, edit, delete projects; assign tasks;
+                  set deadlines; view all analytics for own projects
+- TeamMember    → View assigned projects/tasks only;
+                  update task progress; cannot create projects
+
+═══════════════════════════════════════════════
+🗄️ DATABASE TABLES (MySQL via XAMPP)
+═══════════════════════════════════════════════
+Generate EF Core migrations for the following tables:
+
+1. Projects
+   - Id (PK, GUID)
+   - Title (string, required)
+   - Description (text)
+   - Status (enum: Draft, Active, OnHold, Completed, Cancelled)
+   - Priority (enum: Low, Medium, High, Critical)
+   - StartDate (DateTime)
+   - EndDate (DateTime)
+   - CreatedByUserId (FK → Users)
+   - OrganizationId (FK → Organizations)
+   - CreatedAt, UpdatedAt
+
+2. ProjectMembers
+   - Id (PK, GUID)
+   - ProjectId (FK → Projects)
+   - UserId (FK → Users)
+   - MemberRole (enum: Lead, Contributor, Observer)
+   - JoinedAt (DateTime)
+
+3. Tasks (ProjectTasks)
+   - Id (PK, GUID)
+   - ProjectId (FK → Projects)
+   - Title (string, required)
+   - Description (text)
+   - AssignedToUserId (FK → Users)
+   - AssignedByUserId (FK → Users)
+   - Status (enum: Todo, InProgress, UnderReview, Done, Blocked)
+   - Priority (enum: Low, Medium, High, Critical)
+   - DueDate (DateTime)
+   - CompletedAt (DateTime, nullable)
+   - CreatedAt, UpdatedAt
+
+4. TaskComments
+   - Id (PK, GUID)
+   - TaskId (FK → ProjectTasks)
+   - UserId (FK → Users)
+   - Comment (text)
+   - CreatedAt
+
+5. Milestones
+   - Id (PK, GUID)
+   - ProjectId (FK → Projects)
+   - Title (string)
+   - Description (text)
+   - DueDate (DateTime)
+   - IsCompleted (bool)
+   - CompletedAt (DateTime, nullable)
+   - CreatedAt
+
+6. ProjectStatusHistory
+   - Id (PK, GUID)
+   - ProjectId (FK → Projects)
+   - ChangedByUserId (FK → Users)
+   - OldStatus (string)
+   - NewStatus (string)
+   - ChangedAt (DateTime)
+   - Remarks (string)
+
+Use connection string:
+"Server=localhost;Port=3306;Database=innotrack_db;User=root;Password=;"
+
+═══════════════════════════════════════════════
+📦 BACKEND — Generate ALL of the following:
+═══════════════════════════════════════════════
+
+1. MODELS
+   - Project.cs
+   - ProjectMember.cs
+   - ProjectTask.cs
+   - TaskComment.cs
+   - Milestone.cs
+   - ProjectStatusHistory.cs
+   - Enums: ProjectStatus, ProjectPriority, TaskStatus,
+            TaskPriority, MemberRole
+
+2. DTOs
+   Project DTOs:
+   - ProjectDto.cs (response – includes member count, task summary)
+   - CreateProjectDto.cs (with validation)
+   - UpdateProjectDto.cs
+   - ProjectSummaryDto.cs (for dashboard cards)
+
+   Task DTOs:
+   - ProjectTaskDto.cs
+   - CreateTaskDto.cs (with validation)
+   - UpdateTaskDto.cs
+   - UpdateTaskStatusDto.cs (TeamMember use)
+
+   Milestone DTOs:
+   - MilestoneDto.cs
+   - CreateMilestoneDto.cs
+
+   Comment DTOs:
+   - TaskCommentDto.cs
+   - CreateTaskCommentDto.cs
+
+   Member DTOs:
+   - ProjectMemberDto.cs
+   - AddProjectMemberDto.cs
+
+3. REPOSITORIES (Interface + Implementation)
+   - IProjectRepository / ProjectRepository
+     → GetAll, GetById, GetByOrganization,
+       GetByUser, Create, Update, Delete
+   - ITaskRepository / TaskRepository
+     → GetByProject, GetByAssignedUser,
+       GetById, Create, Update, UpdateStatus, Delete
+   - IMilestoneRepository / MilestoneRepository
+   - ITaskCommentRepository / TaskCommentRepository
+   - IProjectMemberRepository / ProjectMemberRepository
+
+4. SERVICES (Interface + Implementation)
+   - IProjectService / ProjectService
+     → GetAllProjects, GetProjectById,
+       CreateProject, UpdateProject, DeleteProject,
+       ChangeProjectStatus, GetProjectSummary
+   - ITaskService / TaskService
+     → GetTasksByProject, GetTaskById,
+       CreateTask, UpdateTask, UpdateTaskStatus,
+       DeleteTask, GetMyTasks
+   - IMilestoneService / MilestoneService
+     → GetMilestonesByProject, CreateMilestone,
+       CompleteMilestone, DeleteMilestone
+   - ITaskCommentService / TaskCommentService
+     → GetCommentsByTask, AddComment, DeleteComment
+   - IProjectMemberService / ProjectMemberService
+     → GetMembers, AddMember, RemoveMember
+
+5. CONTROLLERS (REST API)
+   ProjectsController.cs
+   → GET    /api/projects                    [All roles]
+   → GET    /api/projects/{id}               [All roles]
+   → GET    /api/projects/{id}/summary       [All roles]
+   → POST   /api/projects                    [ProjectManager]
+   → PUT    /api/projects/{id}               [ProjectManager]
+   → DELETE /api/projects/{id}               [ProjectManager, SuperAdmin]
+   → PATCH  /api/projects/{id}/status        [ProjectManager]
+   → GET    /api/projects/{id}/members       [All roles]
+   → POST   /api/projects/{id}/members       [ProjectManager]
+   → DELETE /api/projects/{id}/members/{uid} [ProjectManager]
+
+   TasksController.cs
+   → GET    /api/projects/{id}/tasks         [All roles]
+   → GET    /api/tasks/{id}                  [All roles]
+   → GET    /api/tasks/my                    [TeamMember]
+   → POST   /api/projects/{id}/tasks         [ProjectManager]
+   → PUT    /api/tasks/{id}                  [ProjectManager]
+   → PATCH  /api/tasks/{id}/status           [TeamMember, ProjectManager]
+   → DELETE /api/tasks/{id}                  [ProjectManager]
+
+   MilestonesController.cs
+   → GET    /api/projects/{id}/milestones    [All roles]
+   → POST   /api/projects/{id}/milestones    [ProjectManager]
+   → PATCH  /api/milestones/{id}/complete    [ProjectManager]
+   → DELETE /api/milestones/{id}             [ProjectManager]
+
+   TaskCommentsController.cs
+   → GET    /api/tasks/{id}/comments         [All roles]
+   → POST   /api/tasks/{id}/comments         [All roles]
+   → DELETE /api/comments/{id}               [Owner, ProjectManager]
+
+6. BUSINESS RULES TO ENFORCE
+   - TeamMember can only view/update tasks assigned to them
+   - ProjectManager can only manage their own created projects
+   - SuperAdmin/SystemAdmin have read-only oversight of all projects
+   - Changing project status must log to ProjectStatusHistory
+   - Task due dates cannot be set past project EndDate
+   - Cannot delete a project with Active status (must set to Cancelled first)
+   - Audit log every create/update/delete action
+
+═══════════════════════════════════════════════
+🖥️ FRONTEND — Blazor Web App
+═══════════════════════════════════════════════
+
+Generate the following Blazor components under /Pages/Projects/:
+
+1. ProjectList.razor
+   - Kanban-style board OR card grid view toggle
+   - Filter by: Status, Priority, Date Range
+   - Search by project title
+   - Role-aware: ProjectManager sees "Create Project" button
+   - Cards show: Title, Status badge, Priority badge,
+                 Progress bar (tasks done/total),
+                 End date, Member avatars
+
+2. ProjectDetails.razor
+   - Header: Title, Status, Priority, Dates, Description
+   - Tabs:
+     [Overview] [Tasks] [Milestones] [Members] [Activity]
+   - Overview Tab:
+     - Project summary cards (Total Tasks, Completed, Overdue, Members)
+     - Progress ring/bar
+     - Recent activity feed
+   - Tasks Tab:
+     - Task board grouped by status columns
+       (Todo | In Progress | Under Review | Done | Blocked)
+     - Drag-and-drop status update (optional)
+     - Add Task button (ProjectManager only)
+     - Each task card: Title, Assignee avatar, Priority, Due date
+   - Milestones Tab:
+     - Timeline or list of milestones
+     - Mark complete button (ProjectManager only)
+   - Members Tab:
+     - List of project members with role badges
+     - Add/Remove member (ProjectManager only)
+   - Activity Tab:
+     - Project status history log
+
+3. CreateProject.razor  [ProjectManager only]
+   - Form fields:
+     Title, Description, Priority, Start Date, End Date
+   - Validation: EndDate must be after StartDate
+   - On submit: POST /api/projects
+
+4. EditProject.razor  [ProjectManager only]
+   - Pre-filled form from GET /api/projects/{id}
+   - Status change dropdown with confirmation modal
+   - Cannot set EndDate before today
+
+5. TaskDetailModal.razor (Modal Component)
+   - Shows full task details
+   - Inline comment section
+   - Status update dropdown (TeamMember + ProjectManager)
+   - Edit/Delete controls (ProjectManager only)
+
+6. CreateTaskModal.razor  [ProjectManager only]
+   - Fields: Title, Description, Assignee (dropdown from members),
+             Priority, Due Date
+   - Due Date validation against project EndDate
+
+7. MyTasks.razor  [TeamMember view]
+   - Personal task dashboard
+   - Table/card list of all tasks assigned to logged-in user
+   - Filter by: Status, Priority, Project
+   - Quick status update inline
+
+8. Shared Components
+   - StatusBadge.razor (color-coded status pills)
+   - PriorityBadge.razor (color-coded priority pills)
+   - ProgressBar.razor (reusable progress component)
+   - ConfirmModal.razor (reusable confirmation dialog)
+   - ProjectApiService.cs (HttpClient wrapper for all project APIs)
+   - TaskApiService.cs (HttpClient wrapper for all task APIs)
+
+═══════════════════════════════════════════════
+📁 FOLDER STRUCTURE ADDITIONS
+═══════════════════════════════════════════════
+
+InnoTrack.API/
+├── Controllers/
+│   ├── ProjectsController.cs
+│   ├── TasksController.cs
+│   ├── MilestonesController.cs
+│   └── TaskCommentsController.cs
+├── Models/
+│   ├── Project.cs
+│   ├── ProjectMember.cs
+│   ├── ProjectTask.cs
+│   ├── TaskComment.cs
+│   ├── Milestone.cs
+│   ├── ProjectStatusHistory.cs
+│   └── Enums/
+│       ├── ProjectStatus.cs
+│       ├── TaskStatus.cs
+│       └── ProjectPriority.cs
+├── DTOs/
+│   ├── Projects/
+│   ├── Tasks/
+│   ├── Milestones/
+│   └── Comments/
+├── Services/
+│   ├── Interfaces/
+│   └── Implementations/
+└── Repositories/
+    ├── Interfaces/
+    └── Implementations/
+
+InnoTrack.Web/ (Blazor)
+├── Pages/
+│   └── Projects/
+│       ├── ProjectList.razor
+│       ├── ProjectDetails.razor
+│       ├── CreateProject.razor
+│       ├── EditProject.razor
+│       └── MyTasks.razor
+├── Components/
+│   ├── StatusBadge.razor
+│   ├── PriorityBadge.razor
+│   ├── ProgressBar.razor
+│   ├── ConfirmModal.razor
+│   ├── TaskDetailModal.razor
+│   └── CreateTaskModal.razor
+└── Services/
+    ├── ProjectApiService.cs
+    └── TaskApiService.cs
+
+═══════════════════════════════════════════════
+✅ REQUIREMENTS & NOTES
+═══════════════════════════════════════════════
+- All code must be production-ready, clean, and well-commented
+- All role-based restrictions enforced both API-side and UI-side
+- Blazor components must show loading spinners and error messages
+- Return proper HTTP status codes (200, 201, 400, 401, 403, 404)
+- Use HttpClient with JWT Bearer header for all Blazor API calls
+- Status/Priority enums stored as strings in DB (not integers)
+- All create/update/delete actions must be audit-logged
+- Business rules validated in Service layer, not just Controller
+- MySQL XAMPP connection:
+  Server=localhost;Port=3306;Database=innotrack_db;User=root;Password=;
+
+
+  Recommended Generation Order
+To avoid overwhelming the AI, generate this module in 4 steps:
+StepWhat to ask for1️⃣"Generate all Models, Enums, and DTOs"
+2️⃣"Generate all Repositories and Services"
+3️⃣"Generate all Controllers with RBAC"
+4️⃣"Generate all Blazor components and API services"

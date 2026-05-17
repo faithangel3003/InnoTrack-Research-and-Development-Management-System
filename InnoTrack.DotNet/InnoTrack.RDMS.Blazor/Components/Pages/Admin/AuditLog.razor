@@ -1,0 +1,168 @@
+ @page "/admin/audit-log"
+@attribute [Authorize(Roles = "Super Admin,System Admin")]
+@inject InnoTrackApiClient ApiClient
+@inject AuthState AuthState
+
+<PageTitle>Audit Log</PageTitle>
+
+<h1>Audit Log</h1>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <p style="color:crimson">@errorMessage</p>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-lg-4">
+                <label class="form-label">User Id</label>
+                <InputText class="form-control" @bind-Value="userIdFilter" placeholder="Filter by User Id (GUID)" />
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label">Start Date</label>
+                <InputDate class="form-control" @bind-Value="startDateFilter" />
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label">End Date</label>
+                <InputDate class="form-control" @bind-Value="endDateFilter" />
+            </div>
+            <div class="col-12 col-lg-2 d-flex gap-2 justify-content-lg-end">
+                <button class="btn btn-outline-primary" @onclick="ApplyFilterAsync">Apply</button>
+                <button class="btn btn-outline-secondary" @onclick="ClearAsync">Clear</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (logs is null)
+{
+    <p><em>Loading logs...</em></p>
+}
+else
+{
+    @if (filteredLogs.Count == 0)
+    {
+        <div class="alert alert-info">No audit log entries matched the current filter.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Timestamp (UTC)</th>
+                        <th>User Id</th>
+                        <th>Module</th>
+                        <th>Action</th>
+                        <th>IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in filteredLogs)
+                    {
+                        <tr>
+                            <td>@log.TimestampUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                            <td>@log.UserId</td>
+                            <td>@log.Module</td>
+                            <td>@log.Action</td>
+                            <td>@log.IpAddress</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@code {
+    private List<AuditLogViewModel>? logs;
+    private string? userIdFilter;
+    private DateTime? startDateFilter;
+    private DateTime? endDateFilter;
+    private string? errorMessage;
+    private bool canViewAllLogs;
+
+    private List<AuditLogViewModel> filteredLogs => (logs ?? [])
+        .Where(log => !startDateFilter.HasValue || log.TimestampUtc >= startDateFilter.Value.Date)
+        .Where(log => !endDateFilter.HasValue || log.TimestampUtc < endDateFilter.Value.Date.AddDays(1))
+        .OrderByDescending(log => log.TimestampUtc)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        canViewAllLogs = AuthState.HasRole("Super Admin");
+
+        if (canViewAllLogs)
+        {
+            await LoadAllAsync();
+        }
+        else
+        {
+            logs = [];
+        }
+    }
+
+    private async Task LoadAllAsync()
+    {
+        try
+        {
+            errorMessage = null;
+            logs = await ApiClient.GetAuditLogsAsync();
+            userIdFilter = null;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ApplyFilterAsync()
+    {
+        if (string.IsNullOrWhiteSpace(userIdFilter))
+        {
+            if (!canViewAllLogs)
+            {
+                errorMessage = "System Admin must provide a valid user GUID.";
+                return;
+            }
+
+            await LoadAllAsync();
+            errorMessage = null;
+            return;
+        }
+
+        if (!Guid.TryParse(userIdFilter, out var userId))
+        {
+            errorMessage = "Enter a valid user GUID for filtering.";
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            logs = await ApiClient.GetAuditLogsByUserAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        userIdFilter = null;
+        startDateFilter = null;
+        endDateFilter = null;
+
+        if (canViewAllLogs)
+        {
+            await LoadAllAsync();
+        }
+        else
+        {
+            logs = [];
+            errorMessage = null;
+        }
+    }
+}

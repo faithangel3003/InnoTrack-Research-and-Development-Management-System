@@ -1,0 +1,27 @@
+@if (string.IsNullOrWhiteSpace(Status))
+{
+    <span class="badge bg-secondary">-</span>
+}
+else
+{
+    <span class="badge @GetBadgeClass(Status)">@Status</span>
+}
+
+@code {
+    [Parameter] public string? Status { get; set; }
+
+    private static string GetBadgeClass(string status) => status.ToLowerInvariant() switch
+    {
+        "draft" => "bg-secondary",
+        "active" => "bg-success",
+        "onhold" => "bg-warning text-dark",
+        "completed" => "bg-primary",
+        "cancelled" => "bg-danger",
+        "todo" => "bg-secondary",
+        "inprogress" => "bg-info text-dark",
+        "underreview" => "bg-warning text-dark",
+        "done" => "bg-success",
+        "blocked" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

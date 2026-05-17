@@ -1,0 +1,13 @@
+<div class="w-100">
+    <div class="progress" style="height: 8px;">
+        <div class="progress-bar bg-primary" role="progressbar" style="width:@Percentage%"></div>
+    </div>
+    <small class="text-muted">@Percentage.ToString("0")% complete</small>
+</div>
+
+@code {
+    [Parameter] public int Total { get; set; }
+    [Parameter] public int Completed { get; set; }
+
+    private double Percentage => Total <= 0 ? 0 : Math.Clamp((double)Completed / Total * 100, 0, 100);
+}

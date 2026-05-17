@@ -1,0 +1,14 @@
+<span class="badge @GetBadgeClass(Priority)">@Priority</span>
+
+@code {
+    [Parameter] public string Priority { get; set; } = "Medium";
+
+    private static string GetBadgeClass(string priority) => priority.ToLowerInvariant() switch
+    {
+        "low" => "bg-secondary",
+        "medium" => "bg-info text-dark",
+        "high" => "bg-warning text-dark",
+        "critical" => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

@@ -1,0 +1,383 @@
+Build the complete "Research Documentation & File Management" module for:
+"InnoTrack: Research and Development Management System for Innovation and Collaboration"
+
+This module builds on top of the existing modules:
+- User & Role Management (Users, Roles, Organizations, JWT Auth)
+- Project Tracking (Projects, Tasks, ProjectMembers)
+Assume all previous models, DbContext, repositories,
+services, and auth middleware already exist.
+
+═══════════════════════════════════════════════
+🛠️ TECH STACK
+═══════════════════════════════════════════════
+- Backend:     ASP.NET Core Web API (C#)
+- Frontend:    Blazor Web App (.NET 8)
+- Database:    MySQL (via XAMPP / phpMyAdmin, local dev)
+- ORM:         Entity Framework Core with Pomelo.EntityFrameworkCore.MySql
+- Auth:        ASP.NET Core Identity + JWT Bearer Tokens
+- Pattern:     Repository Pattern + Service Layer + DTOs
+- File Storage: Local file system (wwwroot/uploads/) for dev,
+                abstracted via IFileStorageService for
+                future cloud migration
+- API Style:   RESTful
+
+═══════════════════════════════════════════════
+👤 ROLE PERMISSIONS FOR THIS MODULE
+═══════════════════════════════════════════════
+- SystemAdmin    → View all documents, manage categories/tags
+- ProjectManager → Upload, edit, delete documents within
+                   own projects; manage document categories
+- TeamMember     → Upload documents to assigned projects;
+                   view/download documents in their projects;
+                   cannot delete others' documents
+
+═══════════════════════════════════════════════
+🗄️ DATABASE TABLES (MySQL via XAMPP)
+═══════════════════════════════════════════════
+Generate EF Core migrations for the following tables:
+
+1. Documents
+   - Id (PK, GUID)
+   - Title (string, required)
+   - Description (text, nullable)
+   - FileName (string – stored file name on disk)
+   - OriginalFileName (string – original uploaded name)
+   - FilePath (string – relative path in wwwroot/uploads/)
+   - FileSize (long – bytes)
+   - FileType (string – MIME type e.g. application/pdf)
+   - FileExtension (string – .pdf, .docx, .xlsx, etc.)
+   - ProjectId (FK → Projects, nullable)
+   - CategoryId (FK → DocumentCategories, nullable)
+   - UploadedByUserId (FK → Users)
+   - OrganizationId (FK → Organizations)
+   - Version (int, default 1)
+   - IsArchived (bool, default false)
+   - CreatedAt, UpdatedAt
+
+2. DocumentVersions
+   - Id (PK, GUID)
+   - DocumentId (FK → Documents)
+   - VersionNumber (int)
+   - FileName (string)
+   - FilePath (string)
+   - FileSize (long)
+   - UploadedByUserId (FK → Users)
+   - ChangeNotes (text, nullable)
+   - CreatedAt
+
+3. DocumentCategories
+   - Id (PK, int)
+   - Name (string, required)
+   - Description (string)
+   - OrganizationId (FK → Organizations)
+   - CreatedAt
+
+4. DocumentTags
+   - Id (PK, int)
+   - Name (string, required)
+   - OrganizationId (FK → Organizations)
+
+5. DocumentTagMap (junction table)
+   - DocumentId (FK → Documents)
+   - TagId (FK → DocumentTags)
+   - PRIMARY KEY (DocumentId, TagId)
+
+6. DocumentAccessLogs
+   - Id (PK, GUID)
+   - DocumentId (FK → Documents)
+   - UserId (FK → Users)
+   - Action (enum: Viewed, Downloaded, Uploaded,
+                   Updated, Deleted, Archived)
+   - AccessedAt (DateTime)
+   - IPAddress (string)
+
+Use connection string:
+"Server=localhost;Port=3306;Database=innotrack_db;User=root;Password=;"
+
+═══════════════════════════════════════════════
+📦 BACKEND — Generate ALL of the following:
+═══════════════════════════════════════════════
+
+1. MODELS
+   - Document.cs
+   - DocumentVersion.cs
+   - DocumentCategory.cs
+   - DocumentTag.cs
+   - DocumentTagMap.cs
+   - DocumentAccessLog.cs
+   - Enums: DocumentAccessAction, AllowedFileType
+
+2. DTOs
+   Document DTOs:
+   - DocumentDto.cs (response – includes tags, category,
+                     uploader name, version)
+   - UploadDocumentDto.cs (request – IFormFile + metadata)
+   - UpdateDocumentDto.cs (title, description, category, tags)
+   - DocumentSummaryDto.cs (for listing – no file path exposed)
+   - DocumentVersionDto.cs
+
+   Category DTOs:
+   - DocumentCategoryDto.cs
+   - CreateDocumentCategoryDto.cs
+
+   Tag DTOs:
+   - DocumentTagDto.cs
+   - CreateDocumentTagDto.cs
+
+   Access Log DTOs:
+   - DocumentAccessLogDto.cs
+
+3. FILE STORAGE SERVICE
+   IFileStorageService / LocalFileStorageService
+   Methods:
+   → SaveFileAsync(IFormFile file, string subfolder)
+     Returns: relative file path string
+   → DeleteFileAsync(string filePath)
+   → GetFileAsync(string filePath)
+     Returns: FileStream
+   → FileExistsAsync(string filePath)
+
+   Rules:
+   - Store under wwwroot/uploads/{organizationId}/{projectId}/
+   - Rename file to GUID on save (keep OriginalFileName in DB)
+   - Max file size: 50MB (configurable in appsettings.json)
+   - Allowed extensions: .pdf, .docx, .xlsx, .pptx,
+     .txt, .csv, .png, .jpg, .jpeg, .zip, .rar
+   - Validate MIME type server-side (not just extension)
+
+4. REPOSITORIES (Interface + Implementation)
+   - IDocumentRepository / DocumentRepository
+     → GetAll, GetById, GetByProject, GetByOrganization,
+       GetByUser, Create, Update, Archive, Delete,
+       SearchDocuments (by title, tag, category)
+   - IDocumentVersionRepository / DocumentVersionRepository
+     → GetVersionsByDocument, GetVersionById,
+       CreateVersion
+   - IDocumentCategoryRepository / DocumentCategoryRepository
+   - IDocumentTagRepository / DocumentTagRepository
+   - IDocumentAccessLogRepository / DocumentAccessLogRepository
+     → LogAccess, GetLogsByDocument, GetLogsByUser
+
+5. SERVICES (Interface + Implementation)
+   - IDocumentService / DocumentService
+     → GetAllDocuments (paginated + filtered)
+     → GetDocumentById
+     → UploadDocument (saves file + creates DB record)
+     → UpdateDocumentMetadata
+     → UploadNewVersion (increments version,
+       saves old to DocumentVersions)
+     → DownloadDocument (returns stream + logs access)
+     → ArchiveDocument
+     → DeleteDocument (soft delete + remove file)
+     → SearchDocuments (title, tag, category, project)
+   - IDocumentCategoryService / DocumentCategoryService
+     → GetCategories, CreateCategory,
+       UpdateCategory, DeleteCategory
+   - IDocumentTagService / DocumentTagService
+     → GetTags, CreateTag, DeleteTag,
+       GetTagsByDocument, AssignTagsToDocument
+   - IDocumentAccessLogService / DocumentAccessLogService
+     → LogAccess, GetDocumentAccessHistory
+
+6. CONTROLLERS (REST API)
+   DocumentsController.cs
+   → GET    /api/documents                    [All roles]
+   → GET    /api/documents/{id}               [All roles]
+   → GET    /api/documents/{id}/download      [All roles]
+   → GET    /api/documents/{id}/versions      [All roles]
+   → GET    /api/projects/{id}/documents      [All roles]
+   → POST   /api/documents/upload             [PM, TeamMember]
+     (multipart/form-data)
+   → PUT    /api/documents/{id}               [PM, TeamMember owner]
+   → POST   /api/documents/{id}/version       [PM, TeamMember owner]
+   → PATCH  /api/documents/{id}/archive       [PM, SystemAdmin]
+   → DELETE /api/documents/{id}               [PM, SystemAdmin, SuperAdmin]
+   → GET    /api/documents/search?q=&tags=
+            &category=&projectId=             [All roles]
+
+   DocumentCategoriesController.cs
+   → GET    /api/document-categories          [All roles]
+   → POST   /api/document-categories          [SystemAdmin, PM]
+   → PUT    /api/document-categories/{id}     [SystemAdmin, PM]
+   → DELETE /api/document-categories/{id}     [SystemAdmin]
+
+   DocumentTagsController.cs
+   → GET    /api/document-tags                [All roles]
+   → POST   /api/document-tags                [SystemAdmin, PM]
+   → DELETE /api/document-tags/{id}           [SystemAdmin]
+
+   DocumentAccessLogsController.cs
+   → GET    /api/documents/{id}/access-logs   [SystemAdmin, SuperAdmin, PM]
+
+7. BUSINESS RULES TO ENFORCE
+   - File size must not exceed 50MB
+   - Only allowed file types accepted (validate MIME + extension)
+   - TeamMember can only delete their own uploaded documents
+   - ProjectManager can delete any document within their project
+   - Uploading a new version keeps the old file in DocumentVersions
+   - Archiving a document hides it from listings but keeps the file
+   - Every view/download/upload/delete must be logged to
+     DocumentAccessLogs
+   - File paths must NEVER be exposed directly in API responses
+     (use /api/documents/{id}/download endpoint instead)
+   - Documents without a ProjectId belong to the organization globally
+
+═══════════════════════════════════════════════
+🖥️ FRONTEND — Blazor Web App
+═══════════════════════════════════════════════
+
+Generate the following Blazor components under /Pages/Documents/:
+
+1. DocumentLibrary.razor
+   - Main document browsing page
+   - Split layout:
+     LEFT SIDEBAR:
+     - Category filter tree
+     - Tags filter (multi-select chips)
+     - Project filter dropdown
+     - File type filter (PDF, Word, Excel, etc.)
+   - MAIN AREA:
+     - Search bar at top
+     - Toggle: Grid View / List View
+     - Sort by: Date, Name, Size, Version
+     - Document cards/rows showing:
+       Title, Category, Tags, Uploader,
+       Upload date, File type icon,
+       Version number, File size
+     - Action buttons: Download, View Details,
+       Edit (owner/PM), Archive (PM/Admin),
+       Delete (owner/PM/Admin)
+   - Role-aware: "Upload Document" button for
+     PM and TeamMember
+
+2. UploadDocument.razor  [PM, TeamMember]
+   - Drag-and-drop file upload zone
+   - Fields: Title, Description, Project (dropdown),
+             Category (dropdown), Tags (multi-select),
+             Change Notes (if uploading new version)
+   - File type and size validation client-side
+   - Upload progress indicator
+   - On success: redirect to DocumentLibrary
+
+3. DocumentDetails.razor
+   - Full document info panel
+   - File preview for images and PDFs (iframe/embed)
+   - Metadata: Uploader, Date, Size, Type,
+               Category, Tags, Version
+   - Version history table with download links
+     per version
+   - "Upload New Version" button (owner/PM)
+   - Access log section (Admin/PM only):
+     Who viewed/downloaded and when
+   - Download button → calls /api/documents/{id}/download
+
+4. EditDocument.razor  [Owner, PM]
+   - Edit: Title, Description, Category, Tags
+   - Cannot change the actual file (use Upload New Version)
+   - Calls PUT /api/documents/{id}
+
+5. DocumentSearch.razor
+   - Full-text search across title, description, tags
+   - Advanced filter panel:
+     Date range, File type, Project, Category, Uploader
+   - Results list with highlight of matched terms
+   - Quick download from results
+
+6. Shared Components
+   - FileTypeIcon.razor
+     (returns icon based on file extension)
+   - FileSizeBadge.razor
+     (formats bytes to KB/MB display)
+   - VersionBadge.razor
+     (shows "v1", "v2" pill badge)
+   - FileUploadZone.razor
+     (reusable drag-and-drop upload component)
+   - DocumentAccessLogTable.razor
+     (reusable access log display)
+   - DocumentApiService.cs
+     (HttpClient wrapper for all document APIs,
+      handles multipart upload + file download as stream)
+
+═══════════════════════════════════════════════
+📁 FOLDER STRUCTURE ADDITIONS
+═══════════════════════════════════════════════
+
+InnoTrack.API/
+├── Controllers/
+│   ├── DocumentsController.cs
+│   ├── DocumentCategoriesController.cs
+│   ├── DocumentTagsController.cs
+│   └── DocumentAccessLogsController.cs
+├── Models/
+│   ├── Document.cs
+│   ├── DocumentVersion.cs
+│   ├── DocumentCategory.cs
+│   ├── DocumentTag.cs
+│   ├── DocumentTagMap.cs
+│   ├── DocumentAccessLog.cs
+│   └── Enums/
+│       └── DocumentAccessAction.cs
+├── DTOs/
+│   └── Documents/
+├── Services/
+│   ├── Interfaces/
+│   │   └── IFileStorageService.cs
+│   └── Implementations/
+│       ├── DocumentService.cs
+│       ├── DocumentCategoryService.cs
+│       ├── DocumentTagService.cs
+│       ├── DocumentAccessLogService.cs
+│       └── LocalFileStorageService.cs
+├── Repositories/
+│   ├── Interfaces/
+│   └── Implementations/
+└── wwwroot/
+    └── uploads/   ← file storage root
+
+InnoTrack.Web/ (Blazor)
+├── Pages/
+│   └── Documents/
+│       ├── DocumentLibrary.razor
+│       ├── UploadDocument.razor
+│       ├── DocumentDetails.razor
+│       ├── EditDocument.razor
+│       └── DocumentSearch.razor
+├── Components/
+│   ├── FileTypeIcon.razor
+│   ├── FileSizeBadge.razor
+│   ├── VersionBadge.razor
+│   ├── FileUploadZone.razor
+│   └── DocumentAccessLogTable.razor
+└── Services/
+    └── DocumentApiService.cs
+
+═══════════════════════════════════════════════
+✅ REQUIREMENTS & NOTES
+═══════════════════════════════════════════════
+- Never expose raw file paths in API responses
+- Always serve files through the download endpoint
+- Validate file type by MIME type AND extension server-side
+- Max file size configurable via appsettings.json:
+  "FileStorage": { "MaxFileSizeMB": 50,
+  "UploadPath": "wwwroot/uploads" }
+- Blazor upload must use multipart/form-data with
+  HttpClient (not standard EditForm)
+- Show upload progress using
+  IProgress<long> or StreamContent
+- All file access events logged to DocumentAccessLogs
+- Soft-delete only: archived docs kept on disk
+- Hard-delete removes DB record AND file from disk
+- Return proper HTTP status codes:
+  200, 201, 400, 401, 403, 404, 413 (file too large)
+- MySQL XAMPP connection:
+  Server=localhost;Port=3306;
+  Database=innotrack_db;User=root;Password=;
+
+
+
+  Recommended Generation Order
+StepWhat to ask for
+1️⃣"Generate Models, Enums, DTOs, and IFileStorageService"
+2️⃣"Generate Repositories and Services including LocalFileStorageService"
+3️⃣"Generate all Controllers with RBAC and file validation"
+4️⃣"Generate all Blazor components and DocumentApiService"

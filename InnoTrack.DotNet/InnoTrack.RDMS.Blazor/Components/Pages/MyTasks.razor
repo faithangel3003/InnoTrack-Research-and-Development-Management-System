@@ -1,0 +1,213 @@
+@page "/my-tasks"
+@attribute [Authorize(Roles = "Team Member")]
+@inject TaskApiService TaskApiService
+@inject AuthState AuthState
+
+<PageTitle>My Tasks</PageTitle>
+
+<div class="mb-3">
+    <h1 class="h3 mb-1">My Tasks</h1>
+    <p class="text-muted mb-0">Hello @(AuthState.Session?.User?.FullName ?? "there"), here are your assignments</p>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading your tasks...</em></p>
+}
+else
+{
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Total Tasks</div><div class="h3 mb-0">@filteredTasks.Count</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Due Today</div><div class="h3 mb-0">@filteredTasks.Count(x => x.DueDate.Date == DateTime.Today && x.Status != "Done")</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Overdue</div><div class="h3 mb-0">@filteredTasks.Count(x => x.DueDate.Date < DateTime.Today && x.Status != "Done")</div></div></div></div>
+        <div class="col-6 col-md-3"><div class="card"><div class="card-body"><div class="small text-muted">Completed</div><div class="h3 mb-0">@filteredTasks.Count(x => x.Status == "Done")</div></div></div></div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-lg-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" @bind="statusFilter">
+                        <option value="">All</option>
+                        <option>Todo</option>
+                        <option>InProgress</option>
+                        <option>UnderReview</option>
+                        <option>Done</option>
+                        <option>Blocked</option>
+                    </select>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" @bind="priorityFilter">
+                        <option value="">All</option>
+                        <option>Low</option>
+                        <option>Medium</option>
+                        <option>High</option>
+                        <option>Critical</option>
+                    </select>
+                </div>
+                <div class="col-12 col-lg-6 d-flex justify-content-lg-end">
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (filteredTasks.Count == 0)
+    {
+        <div class="alert alert-info">You currently have no assigned tasks.</div>
+    }
+    else
+    {
+        @foreach (var statusSection in sections)
+        {
+            var tasksInSection = filteredTasks.Where(x => x.Status == statusSection.Key).OrderBy(x => x.DueDate).ToList();
+            if (tasksInSection.Count == 0)
+            {
+                continue;
+            }
+
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <button class="btn btn-link p-0 text-decoration-none" @onclick="(() => ToggleSection(statusSection.Key))">@statusSection.Value (@tasksInSection.Count)</button>
+                </div>
+                @if (!collapsedSections.Contains(statusSection.Key))
+                {
+                    <div class="card-body">
+                        <div class="d-flex flex-column gap-2">
+                            @foreach (var task in tasksInSection)
+                            {
+                                <div class="border rounded p-3">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div>
+                                            <div class="fw-semibold">@task.Title</div>
+                                            <div class="small text-muted mb-1">@Shorten(task.Description, 120)</div>
+                                        </div>
+                                        <PriorityBadge Priority="@task.Priority" />
+                                    </div>
+                                    <div class="d-flex flex-wrap justify-content-between align-items-center mt-2 gap-2">
+                                        <div class="small @GetDueDateClass(task)">Due: @task.DueDate.ToString("MMM dd, yyyy")</div>
+                                        <select class="form-select form-select-sm" style="max-width: 170px;" value="@task.Status" @onchange="(e => ChangeStatusAsync(task.Id, e.Value?.ToString()))">
+                                            <option>Todo</option>
+                                            <option>InProgress</option>
+                                            <option>UnderReview</option>
+                                            <option>Done</option>
+                                            <option>Blocked</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    private List<ProjectTaskItem> tasks = [];
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string statusFilter = string.Empty;
+    private string priorityFilter = string.Empty;
+    private readonly HashSet<string> collapsedSections = [];
+    private readonly Dictionary<string, string> sections = new()
+    {
+        ["Todo"] = "Todo",
+        ["InProgress"] = "In Progress",
+        ["UnderReview"] = "Under Review",
+        ["Done"] = "Done",
+        ["Blocked"] = "Blocked"
+    };
+
+    private List<ProjectTaskItem> filteredTasks => tasks
+        .Where(x => string.IsNullOrWhiteSpace(statusFilter) || x.Status == statusFilter)
+        .Where(x => string.IsNullOrWhiteSpace(priorityFilter) || x.Priority == priorityFilter)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            tasks = await TaskApiService.GetMyTasksAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChangeStatusAsync(Guid taskId, string? newStatus)
+    {
+        if (string.IsNullOrWhiteSpace(newStatus))
+        {
+            return;
+        }
+
+        var current = tasks.FirstOrDefault(x => x.Id == taskId);
+        if (current is null)
+        {
+            return;
+        }
+
+        var oldStatus = current.Status;
+        current.Status = newStatus;
+
+        try
+        {
+            await TaskApiService.UpdateTaskStatusAsync(taskId, new UpdateTaskStatusRequestModel { Status = newStatus });
+        }
+        catch (Exception ex)
+        {
+            current.Status = oldStatus;
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void ToggleSection(string key)
+    {
+        if (!collapsedSections.Add(key))
+        {
+            collapsedSections.Remove(key);
+        }
+    }
+
+    private void ClearFilters()
+    {
+        statusFilter = string.Empty;
+        priorityFilter = string.Empty;
+    }
+
+    private static string GetDueDateClass(ProjectTaskItem task)
+    {
+        if (task.DueDate.Date < DateTime.Today && task.Status != "Done") return "text-danger fw-semibold";
+        if (task.DueDate.Date == DateTime.Today && task.Status != "Done") return "text-warning fw-semibold";
+        if (task.DueDate.Date <= DateTime.Today.AddDays(7) && task.Status != "Done") return "text-warning";
+        return "text-muted";
+    }
+
+    private static string Shorten(string? value, int max)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "No description";
+        return value.Length <= max ? value : value[..max] + "...";
+    }
+}

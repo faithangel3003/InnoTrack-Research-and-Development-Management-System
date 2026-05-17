@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="InnoTrack.RDMS.Api/InnoTrack.RDMS.Api.csproj" />
+  <Project Path="InnoTrack.RDMS.Blazor/InnoTrack.RDMS.Blazor.csproj" />
+</Solution>

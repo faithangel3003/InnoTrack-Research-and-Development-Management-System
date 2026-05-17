@@ -1,0 +1,571 @@
+Innovation Analytics & Reports Module Prompt
+
+You are an expert ASP.NET Core and Blazor developer.
+
+Build the complete "Innovation Analytics & Reports" module for:
+"InnoTrack: Research and Development Management System for Innovation and Collaboration"
+
+This is the final module and builds on top of ALL existing modules:
+- User & Role Management (Users, Roles, Organizations, JWT Auth)
+- Project Tracking (Projects, Tasks, Milestones, ProjectMembers)
+- Research Documentation (Documents, Categories, Tags)
+- Collaboration & Communication (Channels, Messages,
+  Announcements, Notifications)
+Assume all previous models, DbContext, repositories,
+services, and auth middleware already exist.
+
+═══════════════════════════════════════════════
+🛠️ TECH STACK
+═══════════════════════════════════════════════
+- Backend:     ASP.NET Core Web API (C#)
+- Frontend:    Blazor Web App (.NET 8)
+- Database:    MySQL (via XAMPP / phpMyAdmin, local dev)
+- ORM:         Entity Framework Core with Pomelo.EntityFrameworkCore.MySql
+- Charts:      ApexCharts (via Blazor.ApexCharts NuGet)
+- PDF Export:  iTextSharp or QuestPDF
+- Excel Export: ClosedXML
+- Auth:        ASP.NET Core Identity + JWT Bearer Tokens
+- Pattern:     Repository Pattern + Service Layer + DTOs
+- API Style:   RESTful
+
+═══════════════════════════════════════════════
+👤 ROLE PERMISSIONS FOR THIS MODULE
+═══════════════════════════════════════════════
+- SystemAdmin    → Full access to all analytics within
+                   their organization; export all reports
+- ProjectManager → Analytics for own projects only;
+                   export project-level reports
+- TeamMember     → View personal performance stats only;
+                   no export access
+
+═══════════════════════════════════════════════
+🗄️ DATABASE TABLES (MySQL via XAMPP)
+═══════════════════════════════════════════════
+Generate EF Core migrations for the following tables:
+
+1. ReportSnapshots
+   - Id (PK, GUID)
+   - Title (string)
+   - Type (enum: ProjectSummary, TaskPerformance,
+                 TeamProductivity, DocumentActivity,
+                 InnovationOverview, CustomReport)
+   - GeneratedByUserId (FK → Users)
+   - OrganizationId (FK → Organizations)
+   - ProjectId (FK → Projects, nullable)
+   - Parameters (JSON string – filters used)
+   - FilePath (string, nullable – exported file)
+   - FileType (enum: PDF, Excel, None)
+   - GeneratedAt (DateTime)
+
+2. KpiMetrics
+   - Id (PK, GUID)
+   - OrganizationId (FK → Organizations)
+   - ProjectId (FK → Projects, nullable)
+   - MetricName (string)
+   - MetricValue (decimal)
+   - Unit (string – e.g. "%", "count", "days")
+   - RecordedAt (DateTime)
+   - Period (string – e.g. "2024-Q1", "2024-11")
+
+3. DashboardWidgets
+   - Id (PK, int)
+   - UserId (FK → Users)
+   - WidgetType (enum: ProjectStatusPie,
+                       TaskCompletionBar,
+                       TeamActivityLine,
+                       DocumentUploadsArea,
+                       MilestoneTimeline,
+                       OverdueTasksCount,
+                       ActiveProjectsCount,
+                       MyTasksSummary)
+   - Position (int – display order)
+   - IsVisible (bool, default true)
+   - ConfigJson (string – widget-specific settings)
+
+Use connection string:
+"Server=localhost;Port=3306;Database=innotrack_db;User=root;Password=;"
+
+═══════════════════════════════════════════════
+📊 ANALYTICS DATA POINTS TO COMPUTE
+═══════════════════════════════════════════════
+All computed from existing module tables (no raw data duplication).
+
+A. PROJECT ANALYTICS
+   - Total projects by status
+     (Draft/Active/OnHold/Completed/Cancelled)
+   - Project completion rate (%)
+   - Average project duration (days)
+   - Projects at risk (past EndDate, not Completed)
+   - Projects created per month (last 12 months)
+   - Project progress % per project
+     (completed tasks / total tasks)
+   - Milestone completion rate per project
+
+B. TASK ANALYTICS
+   - Total tasks by status per project
+   - Task completion rate (%) per project / per user
+   - Average task resolution time (days)
+   - Overdue tasks count (past DueDate, not Done)
+   - Tasks created vs completed per week
+   - Task distribution by priority
+   - Top performers (users with most tasks completed)
+
+C. TEAM PRODUCTIVITY ANALYTICS
+   - Tasks completed per team member (last 30 days)
+   - Average task completion time per user
+   - Team member workload (assigned open tasks count)
+   - Most active contributors (by task updates + doc uploads)
+   - User activity heatmap data (actions per day of week)
+
+D. DOCUMENT ANALYTICS
+   - Total documents uploaded per project
+   - Documents by file type breakdown
+   - Upload activity over time (per month)
+   - Most downloaded/viewed documents (top 10)
+   - Storage used per organization (MB)
+   - Document version update frequency
+
+E. COLLABORATION ANALYTICS
+   - Total messages sent per project channel
+   - Most active channels
+   - Announcement read rates (read / total members %)
+   - Notification response rate
+   - Active users per day/week
+
+F. INNOVATION OVERVIEW (Executive Dashboard)
+   - Total active projects
+   - Total team members
+   - Overall task completion rate
+   - Total documents in system
+   - Projects completed this quarter
+   - R&D velocity (tasks completed per week trend)
+   - Innovation score (composite KPI –
+     weighted average of completion rate,
+     on-time delivery, team activity)
+
+═══════════════════════════════════════════════
+📦 BACKEND — Generate ALL of the following:
+═══════════════════════════════════════════════
+
+1. MODELS
+   - ReportSnapshot.cs
+   - KpiMetric.cs
+   - DashboardWidget.cs
+   - Enums:
+     ReportType, ReportFileType, WidgetType
+
+2. DTOs
+   Analytics DTOs:
+   - ProjectAnalyticsDto.cs
+     (all project-level computed metrics)
+   - TaskAnalyticsDto.cs
+     (task stats, overdue counts, completion rates)
+   - TeamProductivityDto.cs
+     (per-user stats, workload, top performers)
+   - DocumentAnalyticsDto.cs
+     (upload stats, type breakdown, storage)
+   - CollaborationAnalyticsDto.cs
+     (message counts, active channels, read rates)
+   - InnovationOverviewDto.cs
+     (executive summary KPIs, innovation score)
+   - DateRangeFilterDto.cs
+     (StartDate, EndDate, ProjectId?, OrganizationId?)
+
+   Chart Data DTOs:
+   - ChartDataSeriesDto.cs
+     (Label: string, Value: decimal, Color?: string)
+   - TimeSeriesDataDto.cs
+     (Date: DateTime, Value: decimal, Label?: string)
+   - HeatmapDataDto.cs
+     (DayOfWeek: string, Hour: int, Value: int)
+
+   Report DTOs:
+   - ReportSnapshotDto.cs
+   - GenerateReportDto.cs
+     (Type, ProjectId?, DateRange, FileType)
+
+   Dashboard DTOs:
+   - DashboardWidgetDto.cs
+   - UpdateWidgetVisibilityDto.cs
+   - UpdateWidgetPositionDto.cs
+
+3. REPOSITORIES (Interface + Implementation)
+   - IAnalyticsRepository / AnalyticsRepository
+     Raw query methods using EF Core:
+     → GetProjectStatusCounts(orgId, dateRange)
+     → GetTaskCompletionRates(projectId?, userId?)
+     → GetTasksCreatedVsCompleted(orgId, weeks)
+     → GetOverdueTasks(orgId, projectId?)
+     → GetTopPerformers(orgId, limit, dateRange)
+     → GetDocumentUploadsByMonth(orgId, months)
+     → GetDocumentTypeBreakdown(orgId, projectId?)
+     → GetMessageCountByChannel(orgId, dateRange)
+     → GetDailyActiveUsers(orgId, days)
+     → GetUserActivityHeatmap(userId, days)
+     → GetStorageUsedByOrg(orgId)
+   - IReportSnapshotRepository / ReportSnapshotRepository
+     → GetByOrganization, GetByUser,
+       GetById, Create, Delete
+   - IDashboardWidgetRepository / DashboardWidgetRepository
+     → GetByUser, UpdatePositions,
+       UpdateVisibility, ResetToDefault
+
+4. SERVICES (Interface + Implementation)
+   - IAnalyticsService / AnalyticsService
+     → GetProjectAnalytics(filter)
+     → GetTaskAnalytics(filter)
+     → GetTeamProductivityAnalytics(filter)
+     → GetDocumentAnalytics(filter)
+     → GetCollaborationAnalytics(filter)
+     → GetInnovationOverview(orgId)
+     → GetInnovationScore(orgId)
+       (computed: weighted KPI composite)
+     → GetUserPersonalStats(userId)
+
+   - IReportService / ReportService
+     → GenerateReport(GenerateReportDto, userId)
+       → calls analytics service
+       → builds report data
+       → exports to PDF or Excel
+       → saves to ReportSnapshots
+     → GetReportHistory(orgId, userId?)
+     → DownloadReport(reportId)
+     → DeleteReport(reportId)
+
+   - IExportService / ExportService
+     → ExportToPdf(reportData, title)
+       Returns: byte[]
+       Uses: QuestPDF
+       Includes: Cover page, summary table,
+                 charts as images, data tables
+     → ExportToExcel(reportData, title)
+       Returns: byte[]
+       Uses: ClosedXML
+       Includes: Multiple sheets per section,
+                 formatted tables, auto-column width
+
+   - IDashboardWidgetService / DashboardWidgetService
+     → GetUserDashboard(userId)
+     → UpdateWidgetPositions(userId, positions[])
+     → ToggleWidgetVisibility(userId, widgetId)
+     → ResetDashboardToDefault(userId)
+
+5. CONTROLLERS (REST API)
+   AnalyticsController.cs
+   → GET /api/analytics/overview
+        ?orgId=&startDate=&endDate=         [Admin, SuperAdmin]
+   → GET /api/analytics/projects
+        ?orgId=&projectId=&startDate=&endDate= [PM+]
+   → GET /api/analytics/tasks
+        ?projectId=&userId=&startDate=&endDate= [PM+]
+   → GET /api/analytics/team
+        ?orgId=&projectId=&startDate=&endDate= [PM+]
+   → GET /api/analytics/documents
+        ?orgId=&projectId=&startDate=&endDate= [PM+]
+   → GET /api/analytics/collaboration
+        ?orgId=&startDate=&endDate=         [Admin+]
+   → GET /api/analytics/personal            [All roles –
+        ?userId=                             own data only]
+   → GET /api/analytics/innovation-score
+        ?orgId=                             [Admin+]
+
+   ReportsController.cs
+   → GET    /api/reports                    [PM+]
+   → GET    /api/reports/{id}               [Owner, Admin]
+   → GET    /api/reports/{id}/download      [Owner, Admin]
+   → POST   /api/reports/generate           [PM+]
+   → DELETE /api/reports/{id}               [Owner, Admin]
+
+   DashboardController.cs
+   → GET    /api/dashboard/widgets          [All roles]
+   → PATCH  /api/dashboard/widgets/positions [All roles]
+   → PATCH  /api/dashboard/widgets/{id}/visibility [All roles]
+   → POST   /api/dashboard/widgets/reset    [All roles]
+
+6. INNOVATION SCORE FORMULA
+   Compute as weighted composite (0–100 scale):
+
+   InnovationScore = (
+     (ProjectCompletionRate  × 0.25) +
+     (OnTimeDeliveryRate     × 0.25) +
+     (TaskCompletionRate     × 0.20) +
+     (TeamActivityScore      × 0.15) +
+     (DocumentationRate      × 0.10) +
+     (CollaborationScore     × 0.05)
+   ) × 100
+
+   Where:
+   - ProjectCompletionRate  = completed / total projects
+   - OnTimeDeliveryRate     = projects completed before
+                              EndDate / total completed
+   - TaskCompletionRate     = done tasks / total tasks
+   - TeamActivityScore      = active users last 30d /
+                              total users
+   - DocumentationRate      = projects with ≥1 document
+                              / total projects
+   - CollaborationScore     = projects with ≥1 channel
+                              message / total projects
+
+   Return score + breakdown per component in
+   InnovationScoreDto.cs
+
+═══════════════════════════════════════════════
+🖥️ FRONTEND — Blazor Web App
+═══════════════════════════════════════════════
+
+Generate the following Blazor components under /Pages/Analytics/:
+
+1. ExecutiveDashboard.razor
+   [SuperAdmin, SystemAdmin]
+   - Full-width innovation overview page
+   - TOP ROW — KPI Summary Cards (6 cards):
+     Active Projects | Total Members |
+     Task Completion % | Documents Uploaded |
+     Projects Completed This Quarter |
+     Innovation Score (with gauge/ring visual)
+   - ROW 2 — Charts (2 columns):
+     LEFT: Projects by Status (Donut chart)
+     RIGHT: Tasks Created vs Completed
+            per week (Bar chart)
+   - ROW 3 — Charts (2 columns):
+     LEFT: R&D Velocity Trend –
+           tasks completed per week (Line chart)
+     RIGHT: Team Activity Heatmap
+            (day of week × activity level)
+   - ROW 4 — Full width:
+     Projects at Risk table
+     (overdue, approaching deadline)
+   - Date range filter (Last 30d / 90d /
+     This Quarter / This Year / Custom)
+   - Export Dashboard as PDF button
+
+2. ProjectAnalyticsDashboard.razor
+   [ProjectManager, Admin]
+   - Project selector dropdown
+   - KPI Cards:
+     Total Tasks | Completed | Overdue |
+     Completion % | Days Remaining |
+     Milestone Progress
+   - Charts:
+     Task Status Distribution (Donut)
+     Task Priority Breakdown (Bar)
+     Task Completion Timeline (Line)
+     Member Workload (Horizontal Bar –
+     tasks per member)
+   - Milestone Progress Timeline component
+   - Overdue tasks table with member names
+
+3. TeamProductivityDashboard.razor
+   [ProjectManager, Admin]
+   - Date range filter
+   - Top Performers leaderboard:
+     Rank | Member Name | Tasks Completed |
+     Avg Completion Time | Active Tasks
+   - Per-member workload cards
+   - Charts:
+     Tasks Completed per Member (Bar)
+     Average Task Time per Member (Bar)
+     Team Activity Over Time (Area chart)
+   - Activity heatmap per selected user
+
+4. DocumentAnalyticsDashboard.razor
+   [ProjectManager, Admin]
+   - KPI Cards:
+     Total Documents | Storage Used |
+     Most Active Project | Avg Versions per Doc
+   - Charts:
+     Uploads per Month (Area chart)
+     File Type Distribution (Donut chart)
+     Top 10 Most Downloaded Documents (Table)
+     Storage per Project (Horizontal Bar)
+
+5. PersonalDashboard.razor
+   [All roles – own data only]
+   - Welcome header with user name + role
+   - My KPI Cards:
+     My Open Tasks | Due Today | Overdue |
+     Completed This Week
+   - My Task Status Breakdown (Donut)
+   - My Productivity Trend (Line –
+     tasks completed per day, last 14 days)
+   - My Upcoming Deadlines (table)
+   - My Recent Document Uploads (list)
+   - My Unread Notifications count
+
+6. ReportGenerator.razor
+   [ProjectManager, Admin, SuperAdmin]
+   - Step-by-step report wizard:
+     STEP 1: Select Report Type
+       (Project Summary / Task Performance /
+        Team Productivity / Document Activity /
+        Innovation Overview)
+     STEP 2: Set Parameters
+       (Project, Date Range, Filters)
+     STEP 3: Preview (live data preview in page)
+     STEP 4: Export Format (PDF / Excel / None)
+   - Generate button → POST /api/reports/generate
+   - Download button appears on success
+
+7. ReportHistory.razor
+   [ProjectManager, Admin]
+   - Table of generated reports:
+     Title | Type | Date | Generated By |
+     Format | Download | Delete
+   - Filter by report type and date
+
+8. CustomizableDashboard.razor
+   [All roles]
+   - Drag-and-drop widget grid layout
+   - Toggle widget visibility
+   - Reorder widgets via drag handle
+   - Available widgets based on role:
+     SuperAdmin/SystemAdmin: all widgets
+     ProjectManager: project + task + team widgets
+     TeamMember: personal task + doc widgets
+   - "Reset to Default" button
+   - Widgets: (each is a self-contained razor component)
+     → ProjectStatusWidget.razor (donut chart)
+     → TaskCompletionWidget.razor (bar chart)
+     → TeamActivityWidget.razor (line chart)
+     → DocumentUploadsWidget.razor (area chart)
+     → OverdueTasksWidget.razor (count + list)
+     → ActiveProjectsWidget.razor (count + list)
+     → MyTasksSummaryWidget.razor (personal tasks)
+     → InnovationScoreWidget.razor (gauge chart)
+
+9. Shared Components
+   - KpiCard.razor
+     (icon, label, value, trend arrow, color theme)
+   - ChartWrapper.razor
+     (loading state + error boundary for ApexCharts)
+   - DateRangeFilter.razor
+     (reusable preset + custom date range picker)
+   - ExportButton.razor
+     (PDF/Excel dropdown export trigger)
+   - DataTable.razor
+     (reusable sortable/paginated table component)
+   - InnovationScoreGauge.razor
+     (semicircle gauge showing 0-100 score)
+   - AnalyticsApiService.cs
+     (HttpClient wrapper for all analytics endpoints)
+   - ReportApiService.cs
+     (HttpClient wrapper for report generation
+      + file download as stream)
+
+═══════════════════════════════════════════════
+📁 FOLDER STRUCTURE ADDITIONS
+═══════════════════════════════════════════════
+
+InnoTrack.API/
+├── Controllers/
+│   ├── AnalyticsController.cs
+│   ├── ReportsController.cs
+│   └── DashboardController.cs
+├── Models/
+│   ├── ReportSnapshot.cs
+│   ├── KpiMetric.cs
+│   ├── DashboardWidget.cs
+│   └── Enums/
+│       ├── ReportType.cs
+│       ├── ReportFileType.cs
+│       └── WidgetType.cs
+├── DTOs/
+│   └── Analytics/
+│       ├── ProjectAnalyticsDto.cs
+│       ├── TaskAnalyticsDto.cs
+│       ├── TeamProductivityDto.cs
+│       ├── DocumentAnalyticsDto.cs
+│       ├── CollaborationAnalyticsDto.cs
+│       ├── InnovationOverviewDto.cs
+│       ├── InnovationScoreDto.cs
+│       ├── ChartDataSeriesDto.cs
+│       ├── TimeSeriesDataDto.cs
+│       └── HeatmapDataDto.cs
+├── Services/
+│   ├── Interfaces/
+│   │   ├── IAnalyticsService.cs
+│   │   ├── IReportService.cs
+│   │   ├── IExportService.cs
+│   │   └── IDashboardWidgetService.cs
+│   └── Implementations/
+│       ├── AnalyticsService.cs
+│       ├── ReportService.cs
+│       ├── ExportService.cs
+│       └── DashboardWidgetService.cs
+└── Repositories/
+    ├── Interfaces/
+    │   ├── IAnalyticsRepository.cs
+    │   ├── IReportSnapshotRepository.cs
+    │   └── IDashboardWidgetRepository.cs
+    └── Implementations/
+
+InnoTrack.Web/ (Blazor)
+├── Pages/
+│   └── Analytics/
+│       ├── ExecutiveDashboard.razor
+│       ├── ProjectAnalyticsDashboard.razor
+│       ├── TeamProductivityDashboard.razor
+│       ├── DocumentAnalyticsDashboard.razor
+│       ├── PersonalDashboard.razor
+│       ├── ReportGenerator.razor
+│       ├── ReportHistory.razor
+│       └── CustomizableDashboard.razor
+├── Components/
+│   ├── Widgets/
+│   │   ├── ProjectStatusWidget.razor
+│   │   ├── TaskCompletionWidget.razor
+│   │   ├── TeamActivityWidget.razor
+│   │   ├── DocumentUploadsWidget.razor
+│   │   ├── OverdueTasksWidget.razor
+│   │   ├── ActiveProjectsWidget.razor
+│   │   ├── MyTasksSummaryWidget.razor
+│   │   └── InnovationScoreWidget.razor
+│   ├── KpiCard.razor
+│   ├── ChartWrapper.razor
+│   ├── DateRangeFilter.razor
+│   ├── ExportButton.razor
+│   ├── DataTable.razor
+│   └── InnovationScoreGauge.razor
+└── Services/
+    ├── AnalyticsApiService.cs
+    └── ReportApiService.cs
+
+═══════════════════════════════════════════════
+✅ REQUIREMENTS & NOTES
+═══════════════════════════════════════════════
+- All analytics are computed queries — no raw
+  data duplication except KpiMetrics snapshots
+- TeamMember can only access /api/analytics/personal
+  with their own userId — enforce in service layer
+- ProjectManager can only view analytics for
+  projects they created or are assigned to
+- All export files saved to
+  wwwroot/exports/{orgId}/ with GUID filenames
+- Report downloads served via
+  /api/reports/{id}/download (never expose path)
+- ApexCharts via Blazor.ApexCharts NuGet:
+  dotnet add package Blazor.ApexCharts
+- PDF export via QuestPDF:
+  dotnet add package QuestPDF
+- Excel export via ClosedXML:
+  dotnet add package ClosedXML
+- Blazor charts must show skeleton loaders
+  while data is fetching
+- All date filters default to last 30 days
+  if not specified
+- Innovation Score recalculated on each
+  /api/analytics/innovation-score call (not cached)
+- Return proper HTTP status codes:
+  200, 400, 401, 403, 404
+- MySQL XAMPP connection:
+  Server=localhost;Port=3306;
+  Database=innotrack_db;User=root;Password=;
+
+
+  Recommended Generation Order
+StepWhat to ask for
+1️⃣"Generate Models, Enums, and all DTOs"
+2️⃣"Generate AnalyticsRepository with all raw EF Core queries"
+3️⃣"Generate AnalyticsService, ReportService, and ExportService"
+4️⃣"Generate all Controllers with RBAC"
+5️⃣"Generate all Blazor dashboard pages and widget components"

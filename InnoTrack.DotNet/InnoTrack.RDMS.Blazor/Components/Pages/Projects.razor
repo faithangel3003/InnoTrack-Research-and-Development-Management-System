@@ -1,0 +1,81 @@
+@page "/projects-legacy"
+@attribute [Authorize]
+@inject InnoTrackApiClient ApiClient
+@inject AuthState AuthState
+@inject CustomAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<PageTitle>Projects</PageTitle>
+
+<h1>Projects Module</h1>
+<p>InnoTrack R&D portfolio with secure role-based access.</p>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <p style="color:crimson">@errorMessage</p>
+}
+
+@if (!AuthState.IsAuthenticated)
+{
+    <p>You are not authenticated.</p>
+    <button class="btn btn-primary" @onclick="GoToLogin">Go to Login</button>
+}
+else if (projects is null)
+{
+    <p><em>Loading projects...</em></p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Lifecycle Stage</th>
+                <th>Updated (UTC)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var project in projects)
+            {
+                <tr>
+                    <td>@project.Name</td>
+                    <td>@project.Status</td>
+                    <td>@project.Priority</td>
+                    <td>@project.LifecycleStage</td>
+                    <td>@project.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ProjectViewModel>? projects;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthProvider.EnsureSessionLoadedAsync();
+
+        if (!AuthState.IsAuthenticated)
+        {
+            return;
+        }
+
+        try
+        {
+            projects = await ApiClient.GetProjectsAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void GoToLogin()
+    {
+        Navigation.NavigateTo("/login");
+    }
+}

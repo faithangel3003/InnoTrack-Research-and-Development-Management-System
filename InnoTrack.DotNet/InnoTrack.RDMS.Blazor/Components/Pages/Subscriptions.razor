@@ -1,0 +1,189 @@
+@page "/subscriptions"
+@attribute [Authorize]
+@inject NavigationManager Navigation
+
+<PageTitle>Subscriptions</PageTitle>
+
+<div class="subscriptions-container">
+    <!-- Metrics Section -->
+    <div class="metrics-section">
+        <div class="metric-card">
+            <div class="metric-icon blue-icon">👥</div>
+            <div class="metric-info">
+                <div class="metric-value">20</div>
+                <div class="metric-label">Total Subscribers</div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-icon green-icon">✓</div>
+            <div class="metric-info">
+                <div class="metric-value">17</div>
+                <div class="metric-label">Active Subscriptions</div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-icon orange-icon">⏱</div>
+            <div class="metric-info">
+                <div class="metric-value">0</div>
+                <div class="metric-label">Trial Users</div>
+            </div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-icon purple-icon">$</div>
+            <div class="metric-info">
+                <div class="metric-value">₽42,983</div>
+                <div class="metric-label">Monthly Revenue</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters Section -->
+    <div class="subscriptions-header">
+        <div class="search-and-filters">
+            <div class="search-box">
+                <input type="text" class="search-input" placeholder="Search subscriptions..." @onchange="HandleSearchChange" />
+            </div>
+            <div class="filters">
+                <select class="filter-select" @onchange="HandleStatusChange">
+                    <option value="">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Cancelled">Cancelled</option>
+                    <option value="Expired">Expired</option>
+                </select>
+                <select class="filter-select" @onchange="HandlePlanChange">
+                    <option value="">All Plans</option>
+                    <option value="Enterprise">Enterprise</option>
+                    <option value="Professional">Professional</option>
+                    <option value="Starter">Starter</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Subscriptions Table -->
+    <div class="table-container">
+        <table class="subscriptions-table">
+            <thead>
+                <tr>
+                    <th>COMPANY</th>
+                    <th>PLAN</th>
+                    <th>PRICE</th>
+                    <th>STATUS</th>
+                    <th>START DATE</th>
+                    <th>END DATE</th>
+                    <th>REMAINING</th>
+                    <th>ACTIONS</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var subscription in filteredSubscriptions)
+                {
+                    <tr>
+                        <td class="company-name"><strong>@subscription.Company</strong></td>
+                        <td>
+                            <span class="plan-badge" style="background-color: @GetPlanColor(subscription.Plan);">
+                                @subscription.Plan
+                            </span>
+                        </td>
+                        <td>@subscription.Price</td>
+                        <td>
+                            <span class="status-badge @subscription.Status.ToLower()">
+                                <span class="status-dot"></span>
+                                @subscription.Status
+                            </span>
+                        </td>
+                        <td>@subscription.StartDate.ToString("MMM d, yyyy")</td>
+                        <td>@subscription.EndDate.ToString("MMM d, yyyy")</td>
+                        <td>@subscription.Remaining</td>
+                        <td>
+                            <button class="action-btn" title="Edit">✏️</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    <div class="pagination-footer">
+        <span>Showing 1-@filteredSubscriptions.Count of @subscriptions.Count subscriptions</span>
+    </div>
+</div>
+
+@code {
+    private List<SubscriptionModel> subscriptions = new();
+    private List<SubscriptionModel> filteredSubscriptions = new();
+    private string searchQuery = "";
+    private string selectedStatus = "";
+    private string selectedPlan = "";
+
+    protected override Task OnInitializedAsync()
+    {
+        // Sample subscription data
+        subscriptions = new List<SubscriptionModel>
+        {
+            new SubscriptionModel { Company = "BenzCarl", Plan = "Starter", Price = "₽999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 9), EndDate = new DateTime(2026, 4, 9), Remaining = "30d" },
+            new SubscriptionModel { Company = "NavalloComps", Plan = "Enterprise", Price = "₽4,999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 9), EndDate = new DateTime(2026, 4, 8), Remaining = "29d" },
+            new SubscriptionModel { Company = "SynapseTech Solutions", Plan = "Starter", Price = "₽999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 9), EndDate = new DateTime(2026, 4, 8), Remaining = "29d" },
+            new SubscriptionModel { Company = "NovoCore Technologies", Plan = "Starter", Price = "₽999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 9), EndDate = new DateTime(2026, 4, 8), Remaining = "29d" },
+            new SubscriptionModel { Company = "ApexLogic Innovations", Plan = "Enterprise", Price = "₽4,999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 9), EndDate = new DateTime(2026, 4, 8), Remaining = "29d" },
+            new SubscriptionModel { Company = "MimaChan", Plan = "Enterprise", Price = "₽4,999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 8), EndDate = new DateTime(2026, 4, 7), Remaining = "28d" },
+            new SubscriptionModel { Company = "Devoro", Plan = "Starter", Price = "₽999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 8), EndDate = new DateTime(2026, 4, 7), Remaining = "28d" },
+            new SubscriptionModel { Company = "BrightLoop", Plan = "Enterprise", Price = "₽4,999/mo", Status = "Active", StartDate = new DateTime(2026, 3, 6), EndDate = new DateTime(2026, 4, 5), Remaining = "26d" },
+            new SubscriptionModel { Company = "ProjectIQ", Plan = "Professional", Price = "₽2,499/mo", Status = "Active", StartDate = new DateTime(2026, 3, 6), EndDate = new DateTime(2026, 4, 5), Remaining = "26d" },
+            new SubscriptionModel { Company = "MAD-DY", Plan = "Professional", Price = "₽2,499/mo", Status = "Cancelled", StartDate = new DateTime(2026, 3, 1), EndDate = new DateTime(2026, 3, 8), Remaining = "—" }
+        };
+
+        UpdateFilteredSubscriptions();
+        return Task.CompletedTask;
+    }
+
+    private void UpdateFilteredSubscriptions()
+    {
+        filteredSubscriptions = subscriptions
+            .Where(s => string.IsNullOrEmpty(searchQuery) || s.Company.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+            .Where(s => string.IsNullOrEmpty(selectedStatus) || s.Status.Equals(selectedStatus, StringComparison.OrdinalIgnoreCase))
+            .Where(s => string.IsNullOrEmpty(selectedPlan) || s.Plan.Equals(selectedPlan, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+    }
+
+    private void HandleSearchChange(ChangeEventArgs e)
+    {
+        searchQuery = e.Value?.ToString() ?? "";
+        UpdateFilteredSubscriptions();
+    }
+
+    private void HandleStatusChange(ChangeEventArgs e)
+    {
+        selectedStatus = e.Value?.ToString() ?? "";
+        UpdateFilteredSubscriptions();
+    }
+
+    private void HandlePlanChange(ChangeEventArgs e)
+    {
+        selectedPlan = e.Value?.ToString() ?? "";
+        UpdateFilteredSubscriptions();
+    }
+
+    private string GetPlanColor(string plan)
+    {
+        return plan switch
+        {
+            "Enterprise" => "#9D6CE9",
+            "Professional" => "#6B5DD6",
+            "Starter" => "#F59E0B",
+            _ => "#6B5DD6"
+        };
+    }
+
+    private class SubscriptionModel
+    {
+        public string Company { get; set; } = "";
+        public string Plan { get; set; } = "";
+        public string Price { get; set; } = "";
+        public string Status { get; set; } = "Active";
+        public DateTime StartDate { get; set; }
+        public DateTime EndDate { get; set; }
+        public string Remaining { get; set; } = "";
+    }
+}

@@ -1,0 +1,96 @@
+﻿@inject AuthState AuthState
+@inject InnoTrackApiClient ApiClient
+@inject NavigationManager Navigation
+
+<div class="top-row navbar navbar-dark">
+    <div class="container-fluid brand-box">
+        <div class="brand-display">
+            <div class="brand-logo">
+                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 5V11C4 16.19 7.41 21.05 12 22.25C16.59 21.05 20 16.19 20 11V5L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <span class="brand-text">InnoTrack</span>
+        </div>
+        <button class="menu-collapse-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8L10 4" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable">
+    <div class="nav-group-label">MENU</div>
+    <nav class="nav flex-column">
+        <div class="nav-item">
+            <NavLink class="nav-link" href="admin/dashboard" Match="NavLinkMatch.All">
+                <div class="nav-icon dashboard-icon"></div>
+                <span>Dashboard</span>
+            </NavLink>
+        </div>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="companies">
+                        <div class="nav-icon companies-icon"></div>
+                        <span>Companies</span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="subscriptions">
+                        <div class="nav-icon sub-icon"></div>
+                        <span>Subscriptions</span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="payments">
+                        <div class="nav-icon pay-icon"></div>
+                        <span>Payments</span>
+                    </NavLink>
+                </div>
+
+                <div class="nav-item">
+                    <NavLink class="nav-link" href="reports">
+                        <div class="nav-icon report-icon"></div>
+                        <span>Reports</span>
+                    </NavLink>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </nav>
+
+    <div class="nav-bottom-section">
+        <div class="nav-group-label">GENERAL</div>
+        <div class="nav-item">
+            <NavLink class="nav-link" href="settings">
+                <div class="nav-icon settings-icon"></div>
+                <span>Settings</span>
+            </NavLink>
+        </div>
+        <div class="nav-item">
+            <button class="nav-link btn-logout" @onclick="LogoutAsync">
+                <div class="nav-icon logout-icon"></div>
+                <span>Logout</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            await ApiClient.LogoutAsync();
+        }
+        catch
+        {
+            AuthState.Clear();
+        }
+
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}
+

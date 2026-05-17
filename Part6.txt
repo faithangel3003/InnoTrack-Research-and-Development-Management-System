@@ -1,0 +1,896 @@
+System-Wide Security Module Prompt
+
+You are an expert ASP.NET Core and Blazor developer
+specializing in enterprise application security.
+
+Implement the complete security layer for:
+"InnoTrack: Research and Development Management System
+for Innovation and Collaboration"
+
+This security module wraps ALL existing modules:
+- User & Role Management
+- Project Tracking & Monitoring
+- Research Documentation & File Management
+- Collaboration & Communication
+- Innovation Analytics & Reports
+
+Assume all previous models, DbContext, repositories,
+services, JWT auth, and RBAC middleware already exist.
+This prompt ADDS and HARDENS security across the
+entire system without replacing existing logic.
+
+
+═══════════════════════════════════════════════
+🔑 1. PASSWORD POLICY
+═══════════════════════════════════════════════
+
+Rules to enforce:
+- Minimum length: 12 characters
+- Must contain: uppercase (A-Z), lowercase (a-z),
+                numbers (0-9)
+- No whitespace allowed
+- Hashing: BCrypt with 12 rounds
+- Never store plain text passwords anywhere
+- Passwords never returned in any API response or DTO
+
+Generate:
+
+A. PasswordPolicyValidator.cs
+   (reusable static class)
+   Methods:
+   → Validate(string password)
+     Returns: ValidationResult
+     (IsValid: bool, Errors: List<string>)
+   Rules checked:
+   - Length >= 12
+   - Contains uppercase letter [A-Z]
+   - Contains lowercase letter [a-z]
+   - Contains digit [0-9]
+   - No whitespace characters
+   - Not null or empty
+
+B. PasswordHashService.cs
+   Interface: IPasswordHashService
+   Methods:
+   → string Hash(string plainPassword)
+      Uses BCrypt.Net.BCrypt.HashPassword(
+        password, workFactor: 12)
+   → bool Verify(string plainPassword,
+                  string hashedPassword)
+      Uses BCrypt.Net.BCrypt.Verify()
+   → bool NeedsRehash(string hashedPassword)
+      Checks if hash uses less than 12 rounds
+
+C. Enforce in:
+   - CreateUserDto.cs:
+     Add [PasswordPolicy] custom validation attribute
+   - AuthService.cs:
+     Call PasswordPolicyValidator before hashing
+   - UserService.cs (ChangePassword):
+     Validate → Hash → Store
+   - Never include PasswordHash field in any
+     response DTO
+
+D. PasswordPolicyAttribute.cs
+   (Custom ValidationAttribute)
+   - Calls PasswordPolicyValidator.Validate()
+   - Returns combined error message if invalid
+   - Used as: [PasswordPolicy] on DTO properties
+
+═══════════════════════════════════════════════
+🔒 2. DATA HANDLING & ENCRYPTION POLICY
+═══════════════════════════════════════════════
+
+A. AES-256-CBC ENCRYPTION SERVICE
+   IEncryptionService / AesEncryptionService.cs
+
+   Config in appsettings.json:
+   "Encryption": {
+     "Key": "<32-byte base64 key>",
+     "IV":  "<16-byte base64 IV>"
+   }
+
+   Methods:
+   → string Encrypt(string plainText)
+      - Generate random IV per encryption
+      - Use AES-256-CBC
+      - Return Base64(IV + CipherText)
+   → string Decrypt(string cipherText)
+      - Extract IV from first 16 bytes
+      - Decrypt remainder
+      - Return plain text
+   → string GenerateSecureKey()
+      - Uses RandomNumberGenerator
+      - Returns 32-byte Base64 string
+
+   Use for:
+   - Session tokens stored in DB
+   - Sensitive config values in DB
+   - Any token stored outside JWT
+
+B. COOKIE SECURITY CONFIGURATION
+   In Program.cs:
+   builder.Services.ConfigureApplicationCookie(
+   options => {
+     options.Cookie.HttpOnly = true;
+     options.Cookie.SecurePolicy =
+       CookieSecurePolicy.Always;
+     options.Cookie.SameSite = SameSiteMode.Strict;
+     options.Cookie.Name = "InnoTrack.Session";
+     options.ExpireTimeSpan = TimeSpan.FromHours(8);
+     options.SlidingExpiration = true;
+   });
+
+   Add Anti-Forgery token:
+   - builder.Services.AddAntiforgery()
+   - Add [ValidateAntiForgeryToken] to all
+     state-changing Blazor forms
+
+C. DATABASE CONNECTION SECURITY
+   Connection string with SSL support:
+   "Server=localhost;Port=3306;
+    Database=innotrack_db;User=root;Password=;
+    SslMode=Required;AllowPublicKeyRetrieval=true;"
+
+   Note: For local XAMPP dev, SslMode=None is
+   acceptable. For MonsterASP production:
+   SslMode=Required
+
+D. SENSITIVE DATA MASKING SERVICE
+   IDataMaskingService / DataMaskingService.cs
+
+   Methods:
+   → string MaskEmail(string email)
+      Input:  "john.doe@example.com"
+      Output: "j***@example.com"
+      Logic:  Keep first char of local part,
+              replace rest before @ with ***,
+              keep domain
+
+   → string MaskPhoneNumber(string phone)
+      Input:  "09171234567"
+      Output: "--1234"
+      Logic:  Show only last 4 digits
+              prefixed with --
+
+   → string MaskSssNumber(string sss)
+      Input:  "123-45-6789"
+      Output: "***-**-6789"
+      Logic:  Mask all but last 4 digits,
+              keep format separators
+
+   → string MaskAddress(string address)
+      Input:  "123 Rizal Street, Davao City"
+      Output: "*** *** Street, Davao City"
+      Logic:  Mask house number and street name,
+              keep city/province
+
+   → string MaskGeneric(string value, int visibleChars)
+      General purpose masker
+
+   Apply masking:
+   - All User response DTOs use masked values by default
+   - Create separate UnmaskedUserDto for authorized access
+
+E. DATA UNMASKING SYSTEM
+   Generate full unmasking flow:
+
+   1. UnmaskRequest Model (DB Table)
+      - Id (PK, GUID)
+      - RequestedByUserId (FK → Users)
+      - TargetUserId (FK → Users)
+      - FieldName (string – "email", "phone", etc.)
+      - VerificationToken (string – encrypted)
+      - TokenExpiry (DateTime – 5 minutes)
+      - IsUsed (bool)
+      - CreatedAt (DateTime)
+
+   2. UnmaskLog Model (DB Table)
+      - Id (PK, GUID)
+      - UserId (FK → Users – who unmasked)
+      - TargetUserId (FK → Users – whose data)
+      - FieldName (string)
+      - IPAddress (string)
+      - UserAgent (string)
+      - Timestamp (DateTime)
+
+   3. IUnmaskService / UnmaskService.cs
+      → RequestUnmask(userId, targetUserId, fieldName)
+         - Verify requesting user's password first
+         - Generate secure 6-char token
+         - Encrypt token, store with 5-min expiry
+         - Returns token to client
+      → VerifyAndUnmask(token, fieldName, targetUserId)
+         - Validate token not expired, not used
+         - Mark token as used
+         - Log unmask action to UnmaskLog
+         - Return actual unmasked value
+      → GetUnmaskLogs(filter) – Admin only
+
+   4. UnmaskController.cs
+      → POST /api/unmask/request
+         Body: { targetUserId, fieldName, password }
+         Returns: { token, expiresAt }
+         [Authorize – any role]
+      → POST /api/unmask/verify
+         Body: { token, targetUserId, fieldName }
+         Returns: { unmaskedValue }
+         [Authorize – any role]
+      → GET  /api/unmask/logs
+         [SuperAdmin, SystemAdmin only]
+
+═══════════════════════════════════════════════
+🛡️ 3. ACCESS CONTROL POLICY
+═══════════════════════════════════════════════
+
+A. MIDDLEWARE: RoleAuthorizationMiddleware.cs
+   - Reads JWT claims on every request
+   - Extracts UserId, Role, OrganizationId
+   - Injects into HttpContext.Items for use
+     in controllers and services
+   - Logs unauthorized access attempts to
+     SecurityEvents table
+   - Returns 403 with structured error response
+     for unauthorized access
+
+B. ADMIN RE-AUTHENTICATION MIDDLEWARE
+   AdminReAuthAttribute.cs
+   (Custom ActionFilter Attribute)
+   - Applied to sensitive config endpoints:
+     [AdminReAuth] on controller/action
+   - Requires X-Admin-Password header
+   - Verifies against current admin's stored hash
+   - On failure: logs SecurityEvent + returns 403
+   - On success: allows request to proceed
+   - Used on:
+     → DELETE /api/users/{id}
+     → PATCH  /api/users/{id}/deactivate
+     → All /api/system-settings endpoints
+     → POST   /api/roles (create/modify roles)
+
+C. SecurityEvent Model (DB Table)
+   - Id (PK, GUID)
+   - EventType (enum: UnauthorizedAccess,
+                      InvalidToken,
+                      BruteForceDetected,
+                      SuspiciousActivity,
+                      ConfigAccessAttempt,
+                      PrivilegeEscalation)
+   - UserId (FK → Users, nullable)
+   - IPAddress (string)
+   - UserAgent (string)
+   - RequestPath (string)
+   - RequestMethod (string)
+   - Details (text)
+   - Severity (enum: Low, Medium, High, Critical)
+   - CreatedAt (DateTime)
+
+D. ISecurityEventService / SecurityEventService.cs
+   → LogEvent(eventType, severity, context, details)
+   → GetSecurityEvents(filter)
+   → GetEventsByUser(userId)
+   → GetHighSeverityEvents(since)
+
+E. SecurityEventsController.cs
+   → GET /api/security-events          [SuperAdmin]
+   → GET /api/security-events/{userId} [SuperAdmin,
+                                        SystemAdmin]
+   → GET /api/security-events/high     [SuperAdmin]
+
+═══════════════════════════════════════════════
+🚫 4. XSS PREVENTION
+═══════════════════════════════════════════════
+
+A. INPUT SANITIZATION SERVICE
+   IInputSanitizationService / InputSanitizationService.cs
+   Uses: HtmlSanitizer NuGet package
+
+   Methods:
+   → string SanitizeHtml(string input)
+      - Strips all HTML tags and attributes
+      - Removes script, iframe, object tags
+      - Encodes special chars:
+        < → &lt;  > → &gt;
+        & → &amp; " → &quot;
+        ' → &#x27;
+
+   → string SanitizePlainText(string input)
+      - Trims whitespace
+      - Removes null bytes (\0)
+      - Encodes HTML entities
+      - Strips control characters
+
+   → string SanitizeFileName(string fileName)
+      - Removes path traversal: ../ ..\
+      - Strips special chars except . - _
+      - Enforces max length: 255 chars
+      - Returns safe file name
+
+   → T SanitizeDto<T>(T dto)
+      - Reflects over all string properties
+      - Applies SanitizePlainText to each
+      - Returns sanitized DTO
+
+B. GLOBAL SANITIZATION FILTER
+   SanitizationActionFilter.cs
+   (IActionFilter – registered globally)
+   - Intercepts all incoming POST/PUT/PATCH requests
+   - Calls SanitizeDto<T> on request body
+   - Applied automatically via:
+     builder.Services.AddControllers(options => {
+       options.Filters.Add<SanitizationActionFilter>();
+     });
+
+C. CONTENT SECURITY POLICY MIDDLEWARE
+   ContentSecurityPolicyMiddleware.cs
+   - Adds HTTP security headers to all responses:
+     Content-Security-Policy:
+       default-src 'self';
+       script-src 'self';
+       style-src 'self' 'unsafe-inline';
+       img-src 'self' data:;
+       font-src 'self';
+       connect-src 'self';
+       frame-ancestors 'none';
+     X-Content-Type-Options: nosniff
+     X-Frame-Options: DENY
+     X-XSS-Protection: 1; mode=block
+     Referrer-Policy: strict-origin-when-cross-origin
+     Permissions-Policy: geolocation=(),
+                          microphone=(),
+                          camera=()
+
+D. BLAZOR-SIDE XSS PREVENTION
+   - Never use @((MarkupString)userContent)
+     unless sanitized first
+   - Create SafeMarkup.cs helper:
+     → MarkupString ToSafeHtml(string input)
+        Sanitizes then wraps in MarkupString
+   - All user-generated content rendered through
+     SafeMarkup helper in Blazor components
+
+═══════════════════════════════════════════════
+📏 5. INPUT SIZE LIMITS
+═══════════════════════════════════════════════
+
+A. REQUEST SIZE LIMITS (Program.cs)
+   builder.WebHost.ConfigureKestrel(options => {
+     // Max request body: 10MB (file uploads handled
+     // separately with 50MB in file controller)
+     options.Limits.MaxRequestBodySize = 10_485_760;
+   });
+
+   builder.Services.Configure<FormOptions>(options => {
+     options.ValueLengthLimit = 4_194_304;   // 4MB
+     options.MultipartBodyLengthLimit =
+       52_428_800;                           // 50MB
+     options.MultipartHeadersLengthLimit = 16_384; // 16KB
+   });
+
+B. FIELD-LEVEL SIZE VALIDATION
+   Apply to ALL DTOs via Data Annotations:
+
+   Standard limits:
+   - Names / Titles:      [MaxLength(150)]
+   - Short descriptions:  [MaxLength(500)]
+   - Long descriptions:   [MaxLength(5000)]
+   - Email:               [MaxLength(254)]
+   - Phone:               [MaxLength(20)]
+   - URLs:                [MaxLength(2048)]
+   - File names:          [MaxLength(255)]
+   - Search queries:      [MaxLength(200)]
+   - Message content:     [MaxLength(10000)]
+   - Comment content:     [MaxLength(3000)]
+   - Announcement body:   [MaxLength(20000)]
+   - Password field:      [MinLength(12),
+                           MaxLength(128)]
+
+   Generate:
+   InputLimitsConstants.cs
+   (static class with all limit constants)
+   → Use these constants in all DTOs and
+     validation attributes
+
+C. GLOBAL MODEL VALIDATION FILTER
+   ValidateModelFilter.cs
+   (IActionFilter – registered globally)
+   - Checks ModelState.IsValid on every request
+   - Returns 400 Bad Request with structured
+     validation error response if invalid:
+     {
+       "errors": {
+         "fieldName": ["error message"]
+       },
+       "traceId": "...",
+       "timestamp": "..."
+     }
+
+D. REQUEST THROTTLE MIDDLEWARE
+   RequestSizeThrottleMiddleware.cs
+   - Rejects requests with
+     Content-Length > 52_428_800 (50MB)
+     before reading body
+   - Returns 413 Payload Too Large
+   - Logs oversized request attempts
+
+═══════════════════════════════════════════════
+💉 6. SQL INJECTION PREVENTION
+═══════════════════════════════════════════════
+
+A. EF CORE PARAMETERIZATION (Default Protection)
+   - ALL database queries use EF Core LINQ
+     or parameterized raw SQL only
+   - NEVER string-interpolate user input
+     into SQL queries
+   - For raw queries use ONLY:
+     context.Database.ExecuteSqlRaw(
+       "SELECT * FROM Users WHERE Email = {0}",
+       email)   ← parameterized
+   - NEVER:
+     context.Database.ExecuteSqlRaw(
+       $"SELECT * FROM Users WHERE Email = '{email}'")
+     ← FORBIDDEN — SQL injection risk
+
+B. SqlInjectionValidationFilter.cs
+   (IActionFilter – registered globally)
+   - Scans all string inputs in query params,
+     route values, and request body for
+     known SQL injection patterns:
+     Patterns detected (regex):
+     → ' OR '1'='1
+     → ; DROP TABLE
+     → UNION SELECT
+     → -- (SQL comment)
+     → xp_cmdshell
+     → EXEC(
+     → CAST( ... AS
+     → WAITFOR DELAY
+     → 0x (hex encoding)
+   - On detection:
+     → Returns 400 Bad Request
+     → Logs SecurityEvent with
+       Severity: High, Type: SuspiciousActivity
+     → Records IP, UserAgent, endpoint, payload
+
+C. SearchQuerySanitizer.cs
+   - Applied to all ?q= and ?search= query parameters
+   - Strips SQL metacharacters:
+     ' " ; -- /* */ xp_ sp_
+   - Enforces MaxLength(200) on search input
+   - Encodes remaining special characters
+
+D. DbContext Query Hardening
+   In InnoTrackDbContext.cs add:
+   - Disable lazy loading:
+     options.UseLazyLoadingProxies(false)
+   - Enable sensitive data logging ONLY in
+     Development environment
+   - Add query timeout:
+     options.CommandTimeout(30)
+   - Add interceptor for query logging:
+     QueryLoggingInterceptor.cs
+     → Logs all queries longer than 2 seconds
+     → Logs queries in non-production environments
+       (without parameter values in production)
+
+═══════════════════════════════════════════════
+📋 7. LOGGING & MONITORING POLICY
+═══════════════════════════════════════════════
+
+A. SERILOG CONFIGURATION (Program.cs)
+   Log.Logger = new LoggerConfiguration()
+     .MinimumLevel.Information()
+     .MinimumLevel.Override("Microsoft", Warning)
+     .Enrich.FromLogContext()
+     .Enrich.WithMachineName()
+     .Enrich.WithEnvironmentName()
+     .WriteTo.Console()
+     .WriteTo.File(
+       path: "Logs/system-.log",
+       rollingInterval: RollingInterval.Day,
+       retainedFileCountLimit: 90,  // 90-day retention
+       fileSizeLimitBytes: 50_000_000,
+       rollOnFileSizeLimit: true)
+     .WriteTo.File(
+       path: "Logs/security-.log",
+       rollingInterval: RollingInterval.Day,
+       retainedFileCountLimit: 365, // 1-year retention
+       restrictedToMinimumLevel: Warning)
+     .WriteTo.File(
+       path: "Logs/auth-.log",
+       rollingInterval: RollingInterval.Day,
+       retainedFileCountLimit: 180, // 6-month retention
+       restrictedToMinimumLevel: Information)
+     .CreateLogger();
+
+B. STRUCTURED LOG MODELS (DB Tables)
+   1. AuthenticationLog
+      - Id (PK, GUID)
+      - UserId (FK → Users, nullable)
+      - Email (string – attempted login email)
+      - EventType (enum: LoginSuccess, LoginFailed,
+                         Logout, TokenRefresh,
+                         PasswordChanged,
+                         AccountLocked)
+      - IPAddress (string)
+      - UserAgent (string)
+      - Location (string, nullable)
+      - FailureReason (string, nullable)
+      - CreatedAt (DateTime)
+      Retention: 6 months minimum
+
+   2. SystemLog
+      - Id (PK, GUID)
+      - UserId (FK → Users, nullable)
+      - Action (string – e.g. "CreateProject")
+      - Module (string – e.g. "ProjectTracking")
+      - EntityType (string)
+      - EntityId (GUID, nullable)
+      - OldValues (JSON, nullable)
+      - NewValues (JSON, nullable)
+      - IPAddress (string)
+      - CreatedAt (DateTime)
+      Retention: 90 days minimum
+
+   3. SecurityLog
+      - Id (PK, GUID)
+      - EventType (FK → SecurityEvent types)
+      - UserId (FK → Users, nullable)
+      - IPAddress (string)
+      - UserAgent (string)
+      - RequestPath (string)
+      - Details (text)
+      - Severity (enum: Low, Medium, High, Critical)
+      - IsInvestigated (bool, default false)
+      - InvestigatedByUserId (FK → Users, nullable)
+      - InvestigationNotes (text, nullable)
+      - CreatedAt (DateTime)
+      Retention: 1 year minimum
+
+   4. DataAccessLog (Unmask logs)
+      - Id (PK, GUID)
+      - UserId (FK → Users)
+      - TargetUserId (FK → Users)
+      - FieldName (string)
+      - Action (string – "Unmasked")
+      - IPAddress (string)
+      - UserAgent (string)
+      - Timestamp (DateTime)
+      Retention: 1 year minimum
+
+C. LOGGING SERVICES
+   IAuthLogService / AuthLogService.cs
+   → LogLogin(userId, email, success,
+               ip, userAgent, reason?)
+   → LogLogout(userId, ip)
+   → LogPasswordChange(userId, ip)
+   → GetLoginHistory(userId, dateRange)
+   → GetFailedLoginsByIP(ip, since)
+
+   ISystemLogService / SystemLogService.cs
+   → LogAction(userId, action, module,
+               entityType, entityId,
+               oldValues?, newValues?, ip)
+   → GetLogsByModule(module, dateRange)
+   → GetLogsByUser(userId, dateRange)
+   → GetAllLogs(filter)
+
+   ISecurityLogService / SecurityLogService.cs
+   → LogSecurityEvent(eventType, severity,
+                      userId?, ip, path, details)
+   → GetHighSeverityEvents(since)
+   → MarkAsInvestigated(logId, adminId, notes)
+   → GetUninvestigatedHighSeverity()
+
+D. BRUTE FORCE DETECTION
+   BruteForceProtectionService.cs
+   (In-memory + DB backed)
+
+   Rules:
+   - Max 5 failed login attempts per IP
+     within 15 minutes → lock IP for 30 minutes
+   - Max 3 failed login attempts per account
+     within 10 minutes → lock account for 15 minutes
+   - On lockout: log SecurityEvent
+     (Type: BruteForceDetected, Severity: High)
+   - Notify SystemAdmin via notification
+     when account is locked
+
+   Methods:
+   → RecordFailedAttempt(email, ipAddress)
+   → IsIpBlocked(ipAddress) → bool
+   → IsAccountLocked(email) → bool
+   → ClearAttempts(email, ipAddress)
+   → GetLockoutExpiry(email) → DateTime?
+
+   FailedLoginAttempt Model (DB Table):
+   - Id (PK, GUID)
+   - Email (string)
+   - IPAddress (string)
+   - AttemptedAt (DateTime)
+   - IsAccountLock (bool)
+   - LockExpiresAt (DateTime, nullable)
+
+E. LOG REVIEW DASHBOARD (Blazor)
+   Pages/Admin/Security/:
+
+   1. SecurityDashboard.razor [SuperAdmin, SystemAdmin]
+      - KPI Cards:
+        Failed Logins (24h) | Active Lockouts |
+        High Severity Events | Uninvestigated Alerts
+      - Charts:
+        Login Activity (success vs fail per hour)
+        Security Events by Type (donut)
+        Top IPs with failed attempts (table)
+      - Alert list: unresolved high severity events
+      - Weekly review badge (shows if week's
+        review is pending)
+
+   2. AuthLogViewer.razor [SuperAdmin, SystemAdmin]
+      - Filter: User, IP, Event Type, Date Range
+      - Table: Email, Event, IP, UserAgent,
+               Timestamp, Success/Fail badge
+      - Export to CSV button
+      - Failed login pattern highlight
+        (red rows for failed attempts)
+
+   3. SystemLogViewer.razor [SuperAdmin, SystemAdmin]
+      - Filter: Module, Action, User, Date Range
+      - Table: User, Action, Module, Entity,
+               Old/New Values (expandable),
+               IP, Timestamp
+      - Diff viewer for Old vs New values
+
+   4. SecurityLogViewer.razor [SuperAdmin only]
+      - Filter: Severity, Type, Investigated,
+                Date Range
+      - Color coded rows by severity:
+        Low (blue) Medium (yellow)
+        High (orange) Critical (red)
+      - Mark as Investigated button + notes input
+      - Bulk investigate action
+
+   5. DataAccessLogViewer.razor
+      [SuperAdmin, SystemAdmin]
+      - All unmask events log
+      - Filter: User, Target User, Field, Date
+      - Table: Who unmasked, Whose data,
+               Which field, IP, Timestamp
+
+═══════════════════════════════════════════════
+⚡ 8. RATE LIMITING
+═══════════════════════════════════════════════
+
+Program.cs Rate Limiting Configuration:
+
+builder.Services.AddRateLimiter(options => {
+
+  // Login endpoint: 5 attempts per 15 minutes per IP
+  options.AddFixedWindowLimiter(
+    "LoginPolicy", opt => {
+      opt.PermitLimit = 5;
+      opt.Window = TimeSpan.FromMinutes(15);
+      opt.QueueProcessingOrder =
+        QueueProcessingOrder.OldestFirst;
+      opt.QueueLimit = 0;
+  });
+
+  // API general: 100 requests per minute per user
+  options.AddFixedWindowLimiter(
+    "ApiPolicy", opt => {
+      opt.PermitLimit = 100;
+      opt.Window = TimeSpan.FromMinutes(1);
+  });
+
+  // File upload: 10 uploads per minute per user
+  options.AddFixedWindowLimiter(
+    "UploadPolicy", opt => {
+      opt.PermitLimit = 10;
+      opt.Window = TimeSpan.FromMinutes(1);
+  });
+
+  // Unmask requests: 3 per 5 minutes per user
+  options.AddFixedWindowLimiter(
+    "UnmaskPolicy", opt => {
+      opt.PermitLimit = 3;
+      opt.Window = TimeSpan.FromMinutes(5);
+  });
+
+  // Report generation: 5 per hour per user
+  options.AddFixedWindowLimiter(
+    "ReportPolicy", opt => {
+      opt.PermitLimit = 5;
+      opt.Window = TimeSpan.FromHours(1);
+  });
+
+  options.OnRejected = async (context, token) => {
+    context.HttpContext.Response.StatusCode = 429;
+    // Log rate limit hit as SecurityEvent
+    await context.HttpContext.Response
+      .WriteAsync("Too many requests.", token);
+  };
+});
+
+Apply policies:
+[EnableRateLimiting("LoginPolicy")]
+→ POST /api/auth/login
+
+[EnableRateLimiting("UploadPolicy")]
+→ POST /api/documents/upload
+
+[EnableRateLimiting("UnmaskPolicy")]
+→ POST /api/unmask/request
+
+[EnableRateLimiting("ReportPolicy")]
+→ POST /api/reports/generate
+
+[EnableRateLimiting("ApiPolicy")]
+→ Applied globally as default
+
+═══════════════════════════════════════════════
+📁 FOLDER STRUCTURE
+═══════════════════════════════════════════════
+
+InnoTrack.API/
+├── Security/
+│   ├── Password/
+│   │   ├── PasswordPolicyValidator.cs
+│   │   ├── PasswordPolicyAttribute.cs
+│   │   └── PasswordHashService.cs
+│   ├── Encryption/
+│   │   └── AesEncryptionService.cs
+│   ├── Masking/
+│   │   ├── DataMaskingService.cs
+│   │   └── UnmaskService.cs
+│   ├── Sanitization/
+│   │   ├── InputSanitizationService.cs
+│   │   ├── SanitizationActionFilter.cs
+│   │   └── SafeMarkupHelper.cs
+│   ├── Validation/
+│   │   ├── SqlInjectionValidationFilter.cs
+│   │   ├── SearchQuerySanitizer.cs
+│   │   ├── ValidateModelFilter.cs
+│   │   └── InputLimitsConstants.cs
+│   ├── RateLimit/
+│   │   └── RateLimitConfiguration.cs
+│   └── BruteForce/
+│       └── BruteForceProtectionService.cs
+├── Middleware/
+│   ├── ContentSecurityPolicyMiddleware.cs
+│   ├── RequestSizeThrottleMiddleware.cs
+│   ├── RoleAuthorizationMiddleware.cs
+│   └── AdminReAuthAttribute.cs
+├── Models/
+│   ├── Security/
+│   │   ├── SecurityEvent.cs
+│   │   ├── FailedLoginAttempt.cs
+│   │   ├── UnmaskRequest.cs
+│   │   └── UnmaskLog.cs
+│   └── Logs/
+│       ├── AuthenticationLog.cs
+│       ├── SystemLog.cs
+│       ├── SecurityLog.cs
+│       └── DataAccessLog.cs
+├── Services/
+│   ├── Interfaces/
+│   │   ├── IPasswordHashService.cs
+│   │   ├── IEncryptionService.cs
+│   │   ├── IDataMaskingService.cs
+│   │   ├── IUnmaskService.cs
+│   │   ├── IInputSanitizationService.cs
+│   │   ├── IBruteForceProtectionService.cs
+│   │   ├── IAuthLogService.cs
+│   │   ├── ISystemLogService.cs
+│   │   ├── ISecurityLogService.cs
+│   │   └── ISecurityEventService.cs
+│   └── Implementations/
+├── Controllers/
+│   ├── UnmaskController.cs
+│   └── SecurityEventsController.cs
+└── Interceptors/
+    └── QueryLoggingInterceptor.cs
+
+InnoTrack.Web/ (Blazor)
+├── Pages/
+│   └── Admin/
+│       └── Security/
+│           ├── SecurityDashboard.razor
+│           ├── AuthLogViewer.razor
+│           ├── SystemLogViewer.razor
+│           ├── SecurityLogViewer.razor
+│           └── DataAccessLogViewer.razor
+└── Helpers/
+    └── SafeMarkup.cs
+
+═══════════════════════════════════════════════
+⚙️ PROGRAM.CS — COMPLETE SECURITY PIPELINE
+═══════════════════════════════════════════════
+
+Register in this exact ORDER in Program.cs:
+
+// 1. Rate Limiting
+builder.Services.AddRateLimiter(...);
+
+// 2. Security Services DI Registration
+builder.Services.AddScoped<IPasswordHashService,
+  PasswordHashService>();
+builder.Services.AddScoped<IEncryptionService,
+  AesEncryptionService>();
+builder.Services.AddScoped<IDataMaskingService,
+  DataMaskingService>();
+builder.Services.AddScoped<IUnmaskService,
+  UnmaskService>();
+builder.Services.AddScoped<IInputSanitizationService,
+  InputSanitizationService>();
+builder.Services.AddSingleton
+  IBruteForceProtectionService,
+  BruteForceProtectionService>();
+builder.Services.AddScoped<IAuthLogService,
+  AuthLogService>();
+builder.Services.AddScoped<ISystemLogService,
+  SystemLogService>();
+builder.Services.AddScoped<ISecurityLogService,
+  SecurityLogService>();
+builder.Services.AddScoped<ISecurityEventService,
+  SecurityEventService>();
+
+// 3. Global Filters
+builder.Services.AddControllers(options => {
+  options.Filters.Add<SanitizationActionFilter>();
+  options.Filters.Add<SqlInjectionValidationFilter>();
+  options.Filters.Add<ValidateModelFilter>();
+});
+
+// 4. Cookie Security
+builder.Services.ConfigureApplicationCookie(...);
+builder.Services.AddAntiforgery();
+
+// 5. Middleware Pipeline (app.Use order matters)
+app.UseRateLimiter();
+app.UseMiddleware<RequestSizeThrottleMiddleware>();
+app.UseMiddleware<ContentSecurityPolicyMiddleware>();
+app.UseMiddleware<RoleAuthorizationMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
+
+═══════════════════════════════════════════════
+✅ REQUIREMENTS & NOTES
+═══════════════════════════════════════════════
+- BCrypt workFactor MUST be 12 — never lower
+- AES Key and IV stored in appsettings.json —
+  rotate keys for production deployment
+- All log tables have DB indexes on:
+  UserId, IPAddress, CreatedAt, EventType
+- Log cleanup job (background service):
+  → Delete AuthenticationLogs older than 6 months
+  → Delete SystemLogs older than 90 days
+  → Keep SecurityLogs and DataAccessLogs forever
+    (or 1 year minimum — never auto-delete)
+- BruteForceProtectionService uses IMemoryCache
+  for speed + DB for persistence across restarts
+- SqlInjectionValidationFilter must log
+  every detected attempt — never silently ignore
+- All security headers applied to EVERY response
+  including error responses
+- SanitizationActionFilter must NOT sanitize
+  binary/file upload streams
+- Blazor: Never bind raw HTML from server responses
+  without running through SafeMarkup helper
+- All log viewers paginated: 50 rows per page
+- Return proper HTTP status codes:
+  400 (bad input), 401 (unauth),
+  403 (forbidden), 413 (too large),
+  429 (rate limited)
+- MySQL XAMPP connection:
+  Server=localhost;Port=3306;
+  Database=innotrack_db;User=root;Password=;
+
+
+   Recommended Generation Order
+StepWhat to ask for
+1️⃣"Generate Password Policy, Hashing, and Encryption services"
+2️⃣"Generate Data Masking, Unmasking flow, and all DB models"
+3️⃣"Generate all Filters: Sanitization, SQL Injection, Validation"
+4️⃣"Generate all Middleware: CSP, Rate Limiting, Brute Force"
+5️⃣"Generate all Logging services, DB tables, and retention jobs"
+6️⃣"Generate all Blazor security dashboard pages"

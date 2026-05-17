@@ -1,0 +1,350 @@
+@page "/"
+@attribute [AllowAnonymous]
+@layout PublicLayout
+
+<PageTitle>InnoTrack ERP</PageTitle>
+
+<div class="landing-shell">
+
+    <!-- NAVBAR -->
+    <header class="landing-header">
+        <div class="landing-nav-wrap">
+            <a class="brand" href="/">
+                <span class="brand-icon">⚙</span>
+                <span class="brand-text"><span>Inno</span>Track</span>
+            </a>
+
+            <nav class="landing-nav">
+                <a href="#home">Home</a>
+                <a href="#features">R&D Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#contact">Contact</a>
+            </nav>
+
+            <div class="landing-actions">
+                <a class="btn-link-login" href="/login">Log In</a>
+                <a class="btn-signup" href="/login">Sign Up <span>→</span></a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+
+        <!-- HERO -->
+        <section id="home" class="hero-section">
+            <div class="hero-bg"></div>
+
+            <div class="hero-left">
+                <h1 class="hero-title">
+                    Innovate.<br />
+                    Track.<br />
+                    <span class="title-green">Collaborate.</span>
+                </h1>
+
+                <p class="hero-sub">
+                    A Research &amp; Development ERP that helps teams manage innovation, streamline product development, and collaborate in real time using <strong>InnoTrack</strong>.
+                </p>
+
+                <p class="hero-extra">
+                    <span class="check-icon">✓</span>
+                    From idea generation to product launch, gain <strong>full visibility</strong> and control over your R&amp;D lifecycle.
+                </p>
+
+                <div class="hero-cta">
+                    <a class="btn-primary" href="/login">Start Innovating <span>→</span></a>
+                    <a class="btn-secondary" href="#features">Explore Features ↓</a>
+                </div>
+
+                <div class="hero-kpis">
+                    <div class="kpi-item">
+                        <span class="kpi-icon">👥</span>
+                        <div>
+                            <strong>2,500+</strong>
+                            <small>R&D Teams</small>
+                        </div>
+                    </div>
+                    <div class="kpi-item">
+                        <span class="kpi-icon">🛡</span>
+                        <div>
+                            <strong>99.9%</strong>
+                            <small>Uptime</small>
+                        </div>
+                    </div>
+                    <div class="kpi-item">
+                        <span class="kpi-icon">⭐</span>
+                        <div>
+                            <strong>4.9</strong>
+                            <small>Rating</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DASHBOARD MOCKUP -->
+            <div class="hero-right">
+                <article class="mock-window">
+                    <div class="mock-top">
+                        <span></span><span></span><span></span>
+                        <small>R&D Dashboard</small>
+                        <span class="mock-topbar-actions">
+                            <span class="mock-dot-btn"></span>
+                            <span class="mock-dot-btn"></span>
+                            <span class="mock-dot-btn"></span>
+                        </span>
+                    </div>
+
+                    <div class="mock-body">
+                        <!-- Sidebar -->
+                        <div class="mock-sidebar">
+                            <div class="mock-sidebar-item active">📊 Dashboard</div>
+                            <div class="mock-sidebar-item">📁 Projects</div>
+                            <div class="mock-sidebar-item">✅ Tasks</div>
+                            <div class="mock-sidebar-item">🔬 Research</div>
+                            <div class="mock-sidebar-item">📄 Documents</div>
+                            <div class="mock-sidebar-item">👥 Team</div>
+                            <div class="mock-sidebar-item">📈 Reports</div>
+                        </div>
+
+                        <!-- Main content -->
+                        <div class="mock-main">
+                            <div class="mini-kpi-row">
+                                <div>
+                                    <label>Active Research</label>
+                                    <strong>24</strong>
+                                    <span class="kpi-badge up">▲ 12%</span>
+                                    <small class="kpi-note">vs last month</small>
+                                </div>
+                                <div>
+                                    <label>Tasks Done</label>
+                                    <strong>156</strong>
+                                    <span class="kpi-badge up">▲ 18%</span>
+                                    <small class="kpi-note">vs last month</small>
+                                </div>
+                                <div>
+                                    <label>Researchers</label>
+                                    <strong>38</strong>
+                                    <span class="kpi-badge up">▲ 5%</span>
+                                    <small class="kpi-note">vs last month</small>
+                                </div>
+                                <div>
+                                    <label>Efficiency</label>
+                                    <strong>99.9%</strong>
+                                    <span class="kpi-badge up">▲ 2.1%</span>
+                                    <small class="kpi-note">vs last month</small>
+                                </div>
+                            </div>
+
+                            <div class="mock-chart-row">
+                                <div class="mock-chart-area">
+                                    <div class="chart-header">
+                                        <span class="chart-title">Research Progress</span>
+                                        <span class="chart-peak">Jun <strong>71%</strong></span>
+                                    </div>
+                                    <div class="bar-graph">
+                                        <div class="bar-item"><span style="height:42px"></span><small>Jan</small></div>
+                                        <div class="bar-item"><span style="height:35px"></span><small>Feb</small></div>
+                                        <div class="bar-item"><span style="height:50px"></span><small>Mar</small></div>
+                                        <div class="bar-item"><span style="height:38px"></span><small>Apr</small></div>
+                                        <div class="bar-item"><span style="height:55px"></span><small>May</small></div>
+                                        <div class="bar-item bar-highlight"><span style="height:71px"></span><small>Jun</small></div>
+                                        <div class="bar-item"><span style="height:48px"></span><small>Jul</small></div>
+                                        <div class="bar-item"><span style="height:60px"></span><small>Aug</small></div>
+                                        <div class="bar-item"><span style="height:44px"></span><small>Sep</small></div>
+                                        <div class="bar-item"><span style="height:53px"></span><small>Oct</small></div>
+                                        <div class="bar-item"><span style="height:39px"></span><small>Nov</small></div>
+                                        <div class="bar-item"><span style="height:46px"></span><small>Dec</small></div>
+                                    </div>
+                                </div>
+
+                                <div class="mock-activity">
+                                    <div class="activity-title">Recent Activity</div>
+                                    <div class="activity-item">
+                                        <span class="act-dot green"></span>
+                                        <div>
+                                            <div class="act-text">Prototype testing composed</div>
+                                            <div class="act-time">Just now</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item">
+                                        <span class="act-dot blue"></span>
+                                        <div>
+                                            <div class="act-text">Research paper uploaded</div>
+                                            <div class="act-time">7 hours ago</div>
+                                        </div>
+                                    </div>
+                                    <div class="activity-item">
+                                        <span class="act-dot orange"></span>
+                                        <div>
+                                            <div class="act-text">Task "Data Analysis" completed</div>
+                                            <div class="act-time">6 hours ago</div>
+                                        </div>
+                                    </div>
+                                    <a class="view-all" href="#">View all activity →</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <div class="floating-note">
+                    <span class="float-check">✓</span>
+                    <div>
+                        <b>Research milestone achieved</b>
+                        <small>Prototype testing completed</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- FEATURES -->
+        <section id="features" class="features-section section-block">
+            <div class="section-head-center">
+                <p class="section-label">R&D FEATURES</p>
+                <h2>Powerful tools for every stage of innovation</h2>
+            </div>
+
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <div class="feature-icon">📈</div>
+                    <h3>Project Tracking &amp; Monitoring Services</h3>
+                    <p>Track research progress, <span class="highlight-text">milestones</span>, and performance with real-time dashboards and reports.</p>
+                </article>
+
+                <article class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>Product Development Lifecycle Management</h3>
+                    <p>Manage the entire lifecycle from idea generation, design, testing, to product deployment.</p>
+                </article>
+
+                <article class="feature-card">
+                    <div class="feature-icon">📁</div>
+                    <h3>Research Documentation &amp; File Management</h3>
+                    <p>Store, organize, and access all research data and documents securely in one centralized hub.</p>
+                </article>
+
+                <article class="feature-card">
+                    <div class="feature-icon">💬</div>
+                    <h3>Collaboration &amp; Communication</h3>
+                    <p>Enable seamless communication, knowledge sharing, and teamwork across departments.</p>
+                </article>
+
+                <article class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <h3>Innovation Analytics &amp; Reporting</h3>
+                    <p>Gain insights with advanced analytics, custom reports, and data-driven decision making.</p>
+                </article>
+            </div>
+        </section>
+
+        <!-- TRUST / STATS BAR -->
+        <section class="trust-section section-block">
+            <div class="trust-grid">
+                <article>
+                    <span class="trust-icon">🛡</span>
+                    <div>
+                        <h3>Secure &amp; Reliable</h3>
+                        <p>Enterprise-grade security to protect your valuable research data.</p>
+                    </div>
+                </article>
+                <article>
+                    <span class="trust-icon">⚡</span>
+                    <div>
+                        <h3>Lightning Fast</h3>
+                        <p>Optimized performance for complex R&amp;D workflows.</p>
+                    </div>
+                </article>
+                <article>
+                    <span class="trust-icon">📊</span>
+                    <div>
+                        <h3>Actionable Insights</h3>
+                        <p>Make smarter decisions with real-time analytics and reporting.</p>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- PRICING -->
+        <section id="pricing" class="pricing-section section-block">
+            <div class="section-head-center">
+                <p class="section-label">PRICING</p>
+                <h2>Simple pricing, powerful results</h2>
+            </div>
+
+            <div class="pricing-grid">
+                <div class="price-card">
+                    <h3>Starter</h3>
+                    <p class="price-sub">For small R&D teams getting started</p>
+                    <div class="price">₱999 <small>/ month</small></div>
+                    <ul>
+                        <li>Up to 25 users</li>
+                        <li>Up to 100 projects</li>
+                        <li>Core R&D modules</li>
+                        <li>Full collaboration features</li>
+                    </ul>
+                    <a href="/login">Subscribe Now</a>
+                </div>
+
+                <div class="price-card featured">
+                    <span class="popular-badge">POPULAR</span>
+                    <h3>Professional</h3>
+                    <p class="price-sub">For growing teams that need more</p>
+                    <div class="price">₱2,499 <small>/ month</small></div>
+                    <ul>
+                        <li>Up to 75 users</li>
+                        <li>Up to 500 projects</li>
+                        <li>All R&D modules</li>
+                        <li>Advanced collaboration</li>
+                    </ul>
+                    <a href="/login">Subscribe Now</a>
+                </div>
+
+                <div class="price-card">
+                    <h3>Enterprise</h3>
+                    <p class="price-sub">For large organizations at scale</p>
+                    <div class="price">₱4,999 <small>/ month</small></div>
+                    <ul>
+                        <li>Unlimited users</li>
+                        <li>Unlimited projects</li>
+                        <li>All R&D modules</li>
+                        <li>Priority support</li>
+                    </ul>
+                    <a href="/login">Subscribe Now</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA -->
+        <section id="contact" class="cta-section section-block">
+            <div class="cta-card">
+                <div>
+                    <h2>Ready to accelerate innovation?</h2>
+                    <p>
+                        Start managing your research and development projects with clarity, collaboration, and control using InnoTrack.
+                    </p>
+                    <div class="cta-contact">
+                        <span>✉ support@innotrack.com</span>
+                        <span>📞 +63 912 345 6789</span>
+                        <span>📍 Davao City, Philippines</span>
+                    </div>
+                </div>
+                <a href="/login">Start Now <span>→</span></a>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="landing-footer">
+        <div class="footer-brand">
+            <span class="brand-icon">⚙</span>
+            <strong><span>Inno</span>Track</strong>
+            <small>© 2026 InnoTrack ERP</small>
+        </div>
+        <nav>
+            <a href="#">Privacy</a>
+            <a href="#">Terms</a>
+            <a href="#contact">Contact</a>
+        </nav>
+    </footer>
+
+</div>

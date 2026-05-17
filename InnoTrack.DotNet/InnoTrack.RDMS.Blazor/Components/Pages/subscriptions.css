@@ -1,0 +1,454 @@
+/* Subscriptions Container */
+.subscriptions-container {
+    padding: 2rem;
+    background-color: #f8f9fa;
+    min-height: calc(100vh - 80px);
+}
+
+/* Metrics Section */
+.metrics-section {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 3rem;
+    margin-top: 0;
+    width: 100%;
+}
+
+.metric-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.75rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border-top: 5px solid transparent;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid #EDEDED;
+    text-align: center;
+}
+
+.metric-card:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+    transform: translateY(-4px);
+}
+
+.metric-card:nth-child(1) {
+    border-top-color: #3B82F6;
+}
+
+.metric-card:nth-child(2) {
+    border-top-color: #10B981;
+}
+
+.metric-card:nth-child(3) {
+    border-top-color: #F59E0B;
+}
+
+.metric-card:nth-child(4) {
+    border-top-color: #9D6CE9;
+}
+
+.metric-card:nth-child(1) {
+    border-left-color: #3B82F6;
+}
+
+.metric-card:nth-child(2) {
+    border-left-color: #10B981;
+}
+
+.metric-card:nth-child(3) {
+    border-left-color: #F59E0B;
+}
+
+.metric-card:nth-child(4) {
+    border-left-color: #9D6CE9;
+}
+
+.metric-icon {
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 12px;
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.blue-icon {
+    background: linear-gradient(135deg, #DBEAFE 0%, #BAE6FD 100%);
+    color: #1E40AF;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.green-icon {
+    background: linear-gradient(135deg, #DCFCE7 0%, #BBF7D0 100%);
+    color: #15803D;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+}
+
+.orange-icon {
+    background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+    color: #D97706;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.15);
+}
+
+.purple-icon {
+    background: linear-gradient(135deg, #EDE9FE 0%, #DDD6FE 100%);
+    color: #6D28D9;
+    box-shadow: 0 4px 12px rgba(157, 108, 233, 0.15);
+}
+
+.metric-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.metric-value {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #111827;
+    margin-bottom: 0.5rem;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+}
+
+.metric-label {
+    font-size: 0.75rem;
+    color: #6B7280;
+    text-transform: uppercase;
+    letter-spacing: 0.75px;
+    font-weight: 700;
+}
+
+/* Subscriptions Header */
+.subscriptions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    gap: 1.5rem;
+}
+
+.search-and-filters {
+    display: flex;
+    gap: 1rem;
+    flex: 1;
+    align-items: center;
+}
+
+.search-box {
+    flex: 1;
+    max-width: 500px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.875rem 1.25rem;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    background: white;
+    color: #1F2937;
+    transition: all 0.3s ease;
+}
+
+.search-input::placeholder {
+    color: #9CA3AF;
+}
+
+.search-input:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 1px #3B82F6;
+    background: white;
+}
+
+.filters {
+    display: flex;
+    gap: 1rem;
+}
+
+.filter-select {
+    padding: 0.875rem 1.25rem;
+    border: 1px solid #E5E7EB;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    background: white;
+    color: #374151;
+    cursor: pointer;
+    min-width: 170px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.filter-select:hover {
+    border-color: #D1D5DB;
+    background-color: #F9FAFB;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1), 0 0 0 1px #3B82F6;
+}
+
+/* Table Container */
+.table-container {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    margin-bottom: 1.5rem;
+    border: 1px solid #EDEDED;
+}
+
+/* Subscriptions Table */
+.subscriptions-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.subscriptions-table thead {
+    background: linear-gradient(180deg, #F9FAFB 0%, #F3F4F6 100%);
+    border-bottom: 2px solid #E5E7EB;
+}
+
+.subscriptions-table thead th {
+    padding: 1.25rem 1rem;
+    text-align: left;
+    font-weight: 700;
+    color: #374151;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.75px;
+}
+
+.subscriptions-table tbody tr {
+    border-bottom: 1px solid #E5E7EB;
+    transition: all 0.2s ease;
+}
+
+.subscriptions-table tbody tr:hover {
+    background-color: #F9FAFB;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.subscriptions-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.subscriptions-table tbody td {
+    padding: 1.25rem 1rem;
+    color: #1F2937;
+    font-size: 0.875rem;
+}
+
+.company-name {
+    font-weight: 700;
+    color: #111827;
+}
+
+/* Plan Badge */
+.plan-badge {
+    display: inline-block;
+    padding: 0.5rem 0.875rem;
+    border-radius: 6px;
+    color: white;
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+/* Status Badge */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.status-badge.active {
+    color: #059669;
+}
+
+.status-badge.cancelled {
+    color: #DC2626;
+}
+
+.status-badge.expired {
+    color: #D97706;
+}
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentColor;
+    box-shadow: 0 0 0 2px white;
+}
+
+/* Action Buttons */
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 1.125rem;
+    padding: 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    color: #F97316;
+}
+
+.action-btn:hover {
+    background-color: #FFF7ED;
+    color: #EA580C;
+    transform: scale(1.1);
+}
+
+/* Pagination Footer */
+.pagination-footer {
+    text-align: center;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    color: #6B7280;
+    font-size: 0.875rem;
+    border: 1px solid #EDEDED;
+    font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 1400px) {
+    .metrics-section {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 1024px) {
+    .metrics-section {
+        grid-template-columns: repeat(2, 1fr);
+        margin-bottom: 2.5rem;
+        gap: 1.25rem;
+    }
+
+    .subscriptions-header {
+        flex-direction: column;
+        align-items: stretch;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-and-filters {
+        flex-direction: column;
+    }
+
+    .search-box {
+        max-width: 100%;
+    }
+
+    .filters {
+        flex-wrap: wrap;
+    }
+
+    .filter-select {
+        min-width: 100%;
+    }
+}
+
+@media (max-width: 768px) {
+    .subscriptions-container {
+        padding: 1.5rem;
+    }
+
+    .metrics-section {
+        grid-template-columns: 1fr;
+        margin-bottom: 2rem;
+        gap: 1rem;
+    }
+
+    .metric-card {
+        padding: 1.5rem;
+        flex-direction: row;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .metric-icon {
+        width: 48px;
+        height: 48px;
+        font-size: 1.5rem;
+        align-self: flex-start;
+    }
+
+    .metric-value {
+        font-size: 1.75rem;
+        margin-bottom: 0.25rem;
+    }
+
+    .metric-label {
+        font-size: 0.7rem;
+    }
+
+    .subscriptions-header {
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .search-and-filters {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .search-box {
+        max-width: 100%;
+    }
+
+    .filters {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .filter-select {
+        min-width: 100%;
+    }
+
+    .subscriptions-table {
+        font-size: 0.75rem;
+    }
+
+    .subscriptions-table thead th,
+    .subscriptions-table tbody td {
+        padding: 0.75rem 0.5rem;
+    }
+
+    .metric-card {
+        gap: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .subscriptions-container {
+        padding: 1rem;
+    }
+
+    .metric-value {
+        font-size: 1.5rem;
+    }
+
+    .search-input,
+    .filter-select {
+        font-size: 16px;
+    }
+}

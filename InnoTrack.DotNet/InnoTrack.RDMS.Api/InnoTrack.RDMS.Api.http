@@ -1,0 +1,6 @@
+@InnoTrack.RDMS.Api_HostAddress = http://localhost:5110
+
+GET {{InnoTrack.RDMS.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

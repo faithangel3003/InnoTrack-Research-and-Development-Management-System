@@ -1,0 +1,224 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout PublicLayout
+@inject InnoTrackApiClient ApiClient
+@inject AuthState AuthState
+@inject CustomAuthStateProvider AuthProvider
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+
+<PageTitle>Login</PageTitle>
+
+<div class="login-shell">
+    <section class="login-left">
+        <div class="brand-row">
+            <div class="brand-mark">TB</div>
+            <span class="brand-name">InnoTrack</span>
+        </div>
+
+        <h1>Enterprise Resource Planning Made Simple</h1>
+        <p>Streamline your business operations with our comprehensive ERP solution designed for modern teams.</p>
+
+        <div class="feature-grid">
+            <article>
+                <h3>Centralized Dashboard</h3>
+                <small>Monitor all project flows in one place</small>
+            </article>
+            <article>
+                <h3>Project Management</h3>
+                <small>Track progress efficiently</small>
+            </article>
+            <article>
+                <h3>Team Collaboration</h3>
+                <small>Work together seamlessly</small>
+            </article>
+            <article>
+                <h3>Knowledge Base</h3>
+                <small>Access documentation easily</small>
+            </article>
+            <article>
+                <h3>Enterprise Security</h3>
+                <small>Role-based access control</small>
+            </article>
+            <article>
+                <h3>Real-time Updates</h3>
+                <small>Stay informed instantly</small>
+            </article>
+        </div>
+    </section>
+
+    <section class="login-right">
+        <div class="login-card">
+            <h2>Welcome back</h2>
+            <p>Access your ThinkBridge ERP workspace.</p>
+
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+            {
+                <div class="alert alert-danger py-2">@errorMessage</div>
+            }
+
+            <EditForm Model="model" OnValidSubmit="LoginAsync" FormName="login-form">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="form-stack">
+                    <label>Email Address</label>
+                    <InputText @bind-Value="model.Email" placeholder="Enter your email address" class="form-control" />
+                    <ValidationMessage For="@(() => model.Email)" />
+
+                    <label>Password</label>
+                    <InputText @bind-Value="model.Password" placeholder="Enter your password" type="password" class="form-control" />
+                    <ValidationMessage For="@(() => model.Password)" />
+
+                    <div class="text-muted small">
+                        This sign-in requires manual reCAPTCHA verification.
+                    </div>
+
+                    <div class="d-flex justify-content-center">
+                        <div id="@RecaptchaContainerId"></div>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(recaptchaMessage))
+                    {
+                        <div class="text-danger small">@recaptchaMessage</div>
+                    }
+
+                    <button class="btn btn-login" type="submit" disabled="@(!isRecaptchaReady || isSubmitting)">@(isSubmitting ? "Signing in..." : "Sign In")</button>
+                </div>
+            </EditForm>
+        </div>
+    </section>
+</div>
+
+@code {
+    private const string RecaptchaContainerId = "login-recaptcha";
+    private LoginRequest model = new();
+    private bool isSubmitting;
+    private bool isRecaptchaReady;
+    private int? recaptchaWidgetId;
+    private string? errorMessage;
+    private string? recaptchaMessage;
+    private string RecaptchaSiteKey => Configuration["Recaptcha:SiteKey"]?.Trim() ?? string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || string.IsNullOrWhiteSpace(RecaptchaSiteKey))
+        {
+            return;
+        }
+
+        try
+        {
+            recaptchaWidgetId = await JS.InvokeAsync<int>("innoTrackRecaptcha.render", RecaptchaContainerId, RecaptchaSiteKey);
+            isRecaptchaReady = true;
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoginAsync()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+            recaptchaMessage = null;
+
+            model.Email = model.Email.Trim();
+            model.CaptchaToken = await GetRecaptchaTokenAsync();
+
+            var response = await ApiClient.LoginAsync(model);
+            if (!RedirectByRole(response.User.Roles))
+            {
+                await ResetRecaptchaAsync("Please complete the reCAPTCHA again before retrying.");
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+
+            if (recaptchaWidgetId.HasValue)
+            {
+                try
+                {
+                    await ResetRecaptchaAsync("Please complete the reCAPTCHA again before retrying.");
+                }
+                catch
+                {
+                }
+            }
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private bool RedirectByRole(IReadOnlyCollection<string> roles)
+    {
+        if (HasAnyRole(roles, "Super Admin", "Super Administrator", "System Admin", "System Administrator"))
+        {
+            Navigation.NavigateTo("/admin/dashboard");
+            return true;
+        }
+
+        if (HasAnyRole(roles, "Project Manager", "ProjectManager"))
+        {
+            Navigation.NavigateTo("/projects");
+            return true;
+        }
+
+        if (HasAnyRole(roles, "Team Member", "TeamMember"))
+        {
+            Navigation.NavigateTo("/my-tasks");
+            return true;
+        }
+
+        errorMessage = "No valid role assigned. Contact your administrator.";
+        return false;
+    }
+
+    private static bool HasAnyRole(IEnumerable<string> roles, params string[] acceptedRoles)
+    {
+        var roleSet = new HashSet<string>(roles.Where(x => !string.IsNullOrWhiteSpace(x)), StringComparer.OrdinalIgnoreCase);
+        return acceptedRoles.Any(roleSet.Contains);
+    }
+
+    private async Task<string> GetRecaptchaTokenAsync()
+    {
+        if (string.IsNullOrWhiteSpace(RecaptchaSiteKey))
+        {
+            throw new InvalidOperationException("reCAPTCHA is not configured. Please contact support.");
+        }
+
+        if (!isRecaptchaReady || !recaptchaWidgetId.HasValue)
+        {
+            throw new InvalidOperationException("reCAPTCHA is still loading. Please wait a moment and try again.");
+        }
+
+        var token = await JS.InvokeAsync<string>("innoTrackRecaptcha.getResponse", recaptchaWidgetId.Value);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            recaptchaMessage = "Please complete the reCAPTCHA before signing in.";
+            throw new InvalidOperationException(recaptchaMessage);
+        }
+
+        return token;
+    }
+
+    private async Task ResetRecaptchaAsync(string? message = null)
+    {
+        if (!recaptchaWidgetId.HasValue)
+        {
+            return;
+        }
+
+        model.CaptchaToken = string.Empty;
+        recaptchaMessage = message;
+        await JS.InvokeVoidAsync("innoTrackRecaptcha.reset", recaptchaWidgetId.Value);
+    }
+}

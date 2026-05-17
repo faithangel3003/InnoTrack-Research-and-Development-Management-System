@@ -1,0 +1,76 @@
+/* ============================================================
+   Landing page global styles
+   PASTE THIS INTO: wwwroot/css/app.css  (or site.css)
+   
+   Reason: Blazor scoped .razor.css files cannot contain
+   @keyframes or @media — the Razor compiler treats @ as a
+   directive and throws CS0103 errors.
+   ============================================================ */
+
+/* ---- Keyframes ---- */
+@keyframes landing-floatNote {
+    0%, 100% { transform: translateY(0); }
+    50%       { transform: translateY(-6px); }
+}
+
+/* ---- Floating note animation ---- */
+.floating-note {
+    animation: landing-floatNote 3s ease-in-out infinite;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1200px) {
+    .landing-nav-wrap,
+    .hero-section,
+    .section-block,
+    .trust-section,
+    .landing-footer {
+        width: calc(100% - 2.4rem);
+    }
+}
+
+@media (max-width: 1024px) {
+    .landing-nav { display: none; }
+
+    .hero-section {
+        grid-template-columns: 1fr;
+        min-height: auto;
+        padding-top: 2.2rem;
+    }
+
+    .hero-sub { max-width: none; }
+
+    .feature-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+    .floating-note { right: 0; bottom: -18px; }
+
+    .pricing-grid { grid-template-columns: 1fr !important; }
+
+    .trust-grid { grid-template-columns: 1fr !important; }
+
+    .trust-grid article {
+        border-right: 0 !important;
+        border-bottom: 1px solid #e5ecf3;
+    }
+    .trust-grid article:last-child { border-bottom: 0; }
+
+    .cta-card { flex-direction: column; align-items: flex-start; }
+
+    .mock-body { grid-template-columns: 90px 1fr !important; }
+}
+
+@media (max-width: 768px) {
+    .feature-grid { grid-template-columns: 1fr !important; }
+    .mini-kpi-row { grid-template-columns: repeat(2, 1fr) !important; }
+    .mock-chart-row { grid-template-columns: 1fr !important; }
+    .mock-activity { display: none; }
+}
+
+@media (max-width: 640px) {
+    .landing-actions { gap: 0.5rem; }
+    .btn-signup { padding: 0.65rem 0.95rem; font-size: 0.85rem; }
+    .hero-cta { flex-direction: column; align-items: flex-start; }
+    .hero-kpis { gap: 1rem; }
+    .brand-text, .footer-brand strong { font-size: 1.2rem; }
+    .price-card.featured { order: -1; }
+}

@@ -1,0 +1,124 @@
+@page "/admin/users/edit/{UserId:guid}"
+@attribute [Authorize(Roles = "Super Admin,System Admin")]
+@inject InnoTrackApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Edit User</PageTitle>
+
+<h1>Edit User</h1>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <p style="color:crimson">@errorMessage</p>
+}
+
+@if (model is null)
+{
+    <p><em>Loading user...</em></p>
+}
+else
+{
+    <EditForm Model="model" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div style="display:grid; gap:10px; max-width:520px;">
+            <InputText class="form-control" @bind-Value="model.FirstName" placeholder="First Name" />
+            <InputText class="form-control" @bind-Value="model.LastName" placeholder="Last Name" />
+            <InputText class="form-control" @bind-Value="model.Email" placeholder="Email" />
+
+            <label>Role</label>
+            <InputSelect class="form-select" @bind-Value="model.RoleId">
+                @foreach (var role in roles)
+                {
+                    <option value="@role.Id">@role.RoleName</option>
+                }
+            </InputSelect>
+
+            <InputText class="form-control" @bind-Value="organizationIdText" placeholder="Organization Id (optional GUID)" />
+
+            <div class="form-check">
+                <InputCheckbox class="form-check-input" @bind-Value="model.IsActive" />
+                <label class="form-check-label">Active</label>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+                <button type="submit" class="btn btn-primary" disabled="@isSubmitting">@(isSubmitting ? "Saving..." : "Save")</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="Back">Cancel</button>
+            </div>
+        </div>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public Guid UserId { get; set; }
+
+    private UpdateUserRequest? model;
+    private List<RoleViewModel> roles = new();
+    private string? organizationIdText;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            roles = await ApiClient.GetRolesAsync();
+            var user = await ApiClient.GetUserByIdAsync(UserId);
+
+            if (user is null)
+            {
+                errorMessage = "User not found.";
+                return;
+            }
+
+            model = new UpdateUserRequest
+            {
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                Email = user.Email,
+                RoleId = user.RoleId,
+                OrganizationId = user.OrganizationId,
+                IsActive = user.IsActive
+            };
+
+            organizationIdText = user.OrganizationId?.ToString();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (model is null)
+        {
+            return;
+        }
+
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            model.OrganizationId = Guid.TryParse(organizationIdText, out var orgId) ? orgId : null;
+
+            await ApiClient.UpdateUserAsync(UserId, model);
+            Navigation.NavigateTo("/admin/users");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/admin/users");
+    }
+}

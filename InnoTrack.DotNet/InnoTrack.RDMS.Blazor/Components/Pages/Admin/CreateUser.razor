@@ -1,0 +1,84 @@
+@page "/admin/users/create"
+@attribute [Authorize(Roles = "Super Admin,System Admin")]
+@inject InnoTrackApiClient ApiClient
+@inject NavigationManager Navigation
+
+<PageTitle>Create User</PageTitle>
+
+<h1>Create User</h1>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <p style="color:crimson">@errorMessage</p>
+}
+
+<EditForm Model="model" OnValidSubmit="CreateAsync">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <div style="display:grid; gap:10px; max-width:520px;">
+        <InputText class="form-control" @bind-Value="model.FirstName" placeholder="First Name" />
+        <InputText class="form-control" @bind-Value="model.LastName" placeholder="Last Name" />
+        <InputText class="form-control" @bind-Value="model.Email" placeholder="Email" />
+        <InputText class="form-control" @bind-Value="model.Password" type="password" placeholder="Temporary Password" />
+
+        <label>Role</label>
+        <InputSelect class="form-select" @bind-Value="model.RoleId">
+            @foreach (var role in roles)
+            {
+                <option value="@role.Id">@role.RoleName</option>
+            }
+        </InputSelect>
+
+        <InputText class="form-control" @bind-Value="organizationIdText" placeholder="Organization Id (optional GUID)" />
+
+        <div style="display:flex; gap:8px;">
+            <button type="submit" class="btn btn-primary" disabled="@isSubmitting">@(isSubmitting ? "Creating..." : "Create")</button>
+            <button type="button" class="btn btn-outline-secondary" @onclick="Back">Cancel</button>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    private CreateUserRequest model = new();
+    private List<RoleViewModel> roles = new();
+    private string? organizationIdText;
+    private bool isSubmitting;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        roles = await ApiClient.GetRolesAsync();
+        if (roles.Count > 0)
+        {
+            model.RoleId = roles[0].Id;
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            isSubmitting = true;
+            errorMessage = null;
+
+            model.OrganizationId = Guid.TryParse(organizationIdText, out var orgId) ? orgId : null;
+
+            await ApiClient.CreateUserAsync(model);
+            Navigation.NavigateTo("/admin/users");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private void Back()
+    {
+        Navigation.NavigateTo("/admin/users");
+    }
+}

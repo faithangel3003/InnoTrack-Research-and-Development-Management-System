@@ -1,0 +1,182 @@
+@page "/admin/dashboard"
+@attribute [Authorize(Roles = "Super Admin,System Admin")]
+@inject InnoTrackApiClient ApiClient
+
+<PageTitle>Dashboard</PageTitle>
+
+@if (!string.IsNullOrWhiteSpace(errorMessage))
+{
+    <div class="alert alert-danger">@errorMessage</div>
+}
+
+@if (isLoading)
+{
+    <p><em>Loading dashboard...</em></p>
+}
+else
+{
+    <div class="welcome-section">
+        <h1>Welcome, Faith !</h1>
+        <p>Platform overview and company management</p>
+    </div>
+
+    <section class="metric-grid">
+        <article class="metric-card">
+            <div class="metric-content">
+                <div class="metric-icon companies">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" /></svg>
+                </div>
+                <div class="metric-details">
+                    <div class="metric-label">Total Companies</div>
+                    <div class="metric-value">@totalCompanies <span class="trend positive">+11 this month</span></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <div class="metric-content">
+                <div class="metric-icon active-sub">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                </div>
+                <div class="metric-details">
+                    <div class="metric-label">Active Subscriptions</div>
+                    <div class="metric-value">@activeSubscriptions <span class="status-badge">17 active</span></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <div class="metric-content">
+                <div class="metric-icon users">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                </div>
+                <div class="metric-details">
+                    <div class="metric-label">Total Users</div>
+                    <div class="metric-value">@totalUsers <span class="trend neutral">Platform-wide</span></div>
+                </div>
+            </div>
+        </article>
+
+        <article class="metric-card">
+            <div class="metric-content">
+                <div class="metric-icon revenue">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                </div>
+                <div class="metric-details">
+                    <div class="metric-label">Monthly Revenue</div>
+                    <div class="metric-value">₱@monthlyRevenueK.ToString("0.0")K <span class="trend positive">+366.8% vs last month</span></div>
+                </div>
+            </div>
+        </article>
+    </section>
+
+    <section class="dashboard-panels">
+        <article class="panel-card main-chart">
+            <div class="panel-header">
+                <h3>Revenue Trend</h3>
+                <span class="legend-item"><span class="dot primary"></span> Revenue</span>
+            </div>
+            <p class="panel-sub">Last 6 months</p>
+            <div class="chart-container">
+                <!-- SVG Chart path simulation -->
+                <svg viewBox="0 0 800 200" class="line-graph">
+                    <path d="M0,180 C100,175 200,170 300,165 S400,140 500,100 S700,50 800,20" stroke="#0d3b66" stroke-width="3" fill="none" />
+                    <circle cx="500" cy="100" r="4" fill="#0d3b66" />
+                </svg>
+                <div class="chart-labels">
+                    <span>Oct 2025</span>
+                    <span>Nov 2025</span>
+                    <span>Dec 2025</span>
+                    <span>Jan 2026</span>
+                    <span>Feb 2026</span>
+                    <span>Mar 2026</span>
+                </div>
+            </div>
+            <div class="trend-stats">
+                <div class="stat-box">
+                    <span class="stat-label">TOTAL REVENUE</span>
+                    <span class="stat-value">₱34.0K</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">GROWTH</span>
+                    <span class="stat-value text-positive">+366.8%</span>
+                </div>
+                <div class="stat-box">
+                    <span class="stat-label">AVG / MONTH</span>
+                    <span class="stat-value">₱5.7K</span>
+                </div>
+            </div>
+        </article>
+
+        <article class="panel-card distribution-chart">
+            <div class="panel-header">
+                <h3>Subscription Distribution</h3>
+            </div>
+            <p class="panel-sub">Active plans breakdown</p>
+            <div class="donut-container">
+                <div class="donut-chart-svg">
+                    <svg viewBox="0 0 36 36" class="circular-chart">
+                        <path class="circle" stroke-dasharray="25, 100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="#001F3F" />
+                        <path class="circle" stroke-dasharray="20, 100" stroke-dashoffset="-25" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="#4a5b75" />
+                        <path class="circle" stroke-dasharray="40, 100" stroke-dashoffset="-45" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="#FF851B" />
+                        <path class="circle" stroke-dasharray="15, 100" stroke-dashoffset="-85" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" stroke="#7FDBFF" />
+                    </svg>
+                </div>
+                <div class="donut-legend">
+                    <div class="legend-row">
+                        <span class="dot ent"></span> Enterprise <span class="val">5</span> <span class="perc">25%</span>
+                    </div>
+                    <div class="legend-row">
+                        <span class="dot pro"></span> Professional <span class="val">4</span> <span class="perc">20%</span>
+                    </div>
+                    <div class="legend-row">
+                        <span class="dot sta"></span> Starter <span class="val">8</span> <span class="perc">40%</span>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </section>
+}
+
+@code {
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string displayName = "Admin";
+
+    private int totalUsers;
+    private int totalCompanies;
+    private int activeSubscriptions;
+    private decimal monthlyRevenueK;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var users = await ApiClient.GetUsersAsync();
+            var projects = await ApiClient.GetProjectsAsync();
+
+            totalUsers = users.Count;
+            totalCompanies = users.Where(x => x.OrganizationId.HasValue).Select(x => x.OrganizationId!.Value).Distinct().Count();
+            activeSubscriptions = projects.Count(x => string.Equals(x.Status, "Active", StringComparison.OrdinalIgnoreCase));
+            monthlyRevenueK = Math.Max(28m, totalUsers * 0.55m);
+
+            displayName = users.FirstOrDefault(x => x.RoleName == "Super Admin")?.FirstName ?? "Super Admin";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

@@ -1,0 +1,191 @@
+@inject TaskApiService TaskApiService
+@inject AuthState AuthState
+
+@if (IsOpen && Task is not null)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.4);">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <PriorityBadge Priority="@Task.Priority" />
+                        <h5 class="modal-title mt-2">@Task.Title</h5>
+                    </div>
+                    <button type="button" class="btn-close" @onclick="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrWhiteSpace(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <div class="row g-3">
+                        <div class="col-lg-7">
+                            <h6>Description</h6>
+                            <p class="text-muted">@Task.Description</p>
+
+                            <h6 class="mt-3">Comments</h6>
+                            @if (isLoadingComments)
+                            {
+                                <p>Loading comments...</p>
+                            }
+                            else if (comments.Count == 0)
+                            {
+                                <p class="text-muted">No comments yet. Be first!</p>
+                            }
+                            else
+                            {
+                                <ul class="list-group mb-3">
+                                    @foreach (var comment in comments)
+                                    {
+                                        <li class="list-group-item">
+                                            <div class="d-flex justify-content-between gap-2">
+                                                <div>
+                                                    <div>@comment.Comment</div>
+                                                    <small class="text-muted">@comment.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy HH:mm")</small>
+                                                </div>
+                                                @if (comment.UserId == AuthState.Session?.User?.Id)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="(() => DeleteCommentAsync(comment.Id))">🗑</button>
+                                                }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+
+                            <div class="input-group">
+                                <textarea class="form-control" rows="2" @bind="newComment" placeholder="Add a comment"></textarea>
+                                <button class="btn btn-outline-primary" @onclick="AddCommentAsync">Send</button>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <h6>Details</h6>
+                            <div class="mb-2">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" value="@selectedStatus" @onchange="OnStatusChangedAsync">
+                                    <option>Todo</option>
+                                    <option>InProgress</option>
+                                    <option>UnderReview</option>
+                                    <option>Done</option>
+                                    <option>Blocked</option>
+                                </select>
+                            </div>
+                            <div class="mb-2"><span class="text-muted">Priority:</span> <PriorityBadge Priority="@Task.Priority" /></div>
+                            <div class="mb-2"><span class="text-muted">Assignee:</span> @Task.AssignedToUserId</div>
+                            <div class="mb-2"><span class="text-muted">Due Date:</span> @Task.DueDate.ToString("MMM dd, yyyy")</div>
+                            <div class="mb-2"><span class="text-muted">Completed:</span> @(Task.CompletedAt?.ToString("MMM dd, yyyy HH:mm") ?? "-" )</div>
+                            <div class="mt-3">
+                                <button class="btn btn-outline-secondary" @onclick="Close">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public ProjectTaskItem? Task { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnUpdated { get; set; }
+
+    private string selectedStatus = "Todo";
+    private string newComment = string.Empty;
+    private string? errorMessage;
+    private bool isLoadingComments;
+    private List<TaskCommentItem> comments = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen && Task is not null)
+        {
+            selectedStatus = Task.Status;
+            await LoadCommentsAsync();
+        }
+    }
+
+    private async Task LoadCommentsAsync()
+    {
+        if (Task is null)
+        {
+            return;
+        }
+
+        isLoadingComments = true;
+
+        try
+        {
+            comments = await TaskApiService.GetCommentsAsync(Task.Id);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoadingComments = false;
+        }
+    }
+
+    private async Task OnStatusChangedAsync(ChangeEventArgs args)
+    {
+        if (Task is null)
+        {
+            return;
+        }
+
+        selectedStatus = args.Value?.ToString() ?? selectedStatus;
+
+        try
+        {
+            await TaskApiService.UpdateTaskStatusAsync(Task.Id, new UpdateTaskStatusRequestModel { Status = selectedStatus });
+            await OnUpdated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task AddCommentAsync()
+    {
+        if (Task is null || string.IsNullOrWhiteSpace(newComment))
+        {
+            return;
+        }
+
+        try
+        {
+            await TaskApiService.AddCommentAsync(Task.Id, new CreateTaskCommentRequestModel { Comment = newComment.Trim() });
+            newComment = string.Empty;
+            await LoadCommentsAsync();
+            await OnUpdated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task DeleteCommentAsync(Guid commentId)
+    {
+        try
+        {
+            await TaskApiService.DeleteCommentAsync(commentId);
+            await LoadCommentsAsync();
+            await OnUpdated.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private async Task Close()
+    {
+        await OnClose.InvokeAsync();
+    }
+}
