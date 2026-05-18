@@ -34,6 +34,17 @@ public class JwtTokenService(IConfiguration configuration) : IJwtTokenService
 
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
+        // Also add condensed role variants (no spaces) to support clients
+        // and checks that may use different role name formats (e.g. "SuperAdmin").
+        var condensed = roles.Select(r => r.Replace(" ", string.Empty)).Distinct();
+        foreach (var r in condensed)
+        {
+            if (!claims.Any(c => c.Type == ClaimTypes.Role && c.Value == r))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, r));
+            }
+        }
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(claims),

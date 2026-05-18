@@ -143,7 +143,7 @@ export function TeamMemberDashboardPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Team Member Dashboard"
+        title=""
         subtitle={`Welcome back, ${user?.firstName || user?.email || 'Team Member'}. Access your role-based modules and stay on top of assigned work.`}
         actions={(
           <Button onClick={() => navigate('/my-tasks')} rightIcon={<SquareCheckBig size={16} />}>

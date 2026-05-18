@@ -11,6 +11,7 @@ public class ProjectRepository(AppDbContext dbContext) : IProjectRepository
     {
         return dbContext.Projects
             .Include(x => x.Members)
+            .Include(x => x.Tasks)
             .OrderByDescending(x => x.UpdatedAt)
             .ToListAsync(cancellationToken);
     }
@@ -19,6 +20,7 @@ public class ProjectRepository(AppDbContext dbContext) : IProjectRepository
     {
         return dbContext.Projects
             .Include(x => x.Members)
+            .Include(x => x.Tasks)
             .Include(x => x.StatusHistory)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
     }
@@ -27,6 +29,7 @@ public class ProjectRepository(AppDbContext dbContext) : IProjectRepository
     {
         return dbContext.Projects
             .Include(x => x.Members)
+            .Include(x => x.Tasks)
             .Where(x => x.OrganizationId == organizationId)
             .OrderByDescending(x => x.UpdatedAt)
             .ToListAsync(cancellationToken);
@@ -36,6 +39,7 @@ public class ProjectRepository(AppDbContext dbContext) : IProjectRepository
     {
         return dbContext.Projects
             .Include(x => x.Members)
+            .Include(x => x.Tasks)
             .Where(x => x.CreatedByUserId == userId || x.Members.Any(m => m.UserId == userId))
             .OrderByDescending(x => x.UpdatedAt)
             .ToListAsync(cancellationToken);

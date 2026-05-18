@@ -1,6 +1,7 @@
-import { Activity, BarChart3, Download, FileStack, Gauge, Layers3, Printer, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
+import { Activity, BarChart3, Download, FileStack, Gauge, Layers3, Sparkles, Target, TrendingUp, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as projectApi from '../../api/projectApi'
+import * as taskApi from '../../api/taskApi'
 import * as userApi from '../../api/userApi'
 import { AdminMetricCard } from '../../components/admin/AdminMetricCard'
 import { RadialSummaryChart } from '../../components/admin/RadialSummaryChart'
@@ -9,7 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { useToast } from '../../context/ToastContext'
-import { printReportElement } from '../../utils/printReport'
+import { downloadPdfElement } from '../../utils/printReport'
 import { countActiveProjects, getProjectTaskTotals, normalizeProjectStatus } from '../../utils/projectMetrics'
 import { normalizeRole } from '../../utils/roleHelpers'
 
@@ -32,10 +33,20 @@ function downloadFile(filename: string, content: string, mimeType: string) {
   window.URL.revokeObjectURL(url)
 }
 
+function normalizeTaskStatus(status?: string) {
+  const value = (status || '').replace(/\s+/g, '').toLowerCase()
+  if (value.includes('block')) return 'Blocked'
+  if (value === 'done' || value === 'completed') return 'Done'
+  if (value.includes('review')) return 'Under Review'
+  if (value.includes('progress') || value.includes('active')) return 'In Progress'
+  return 'To Do'
+}
+
 export function InnovationAnalyticsPage() {
   const toast = useToast()
   const analyticsContentRef = useRef<HTMLDivElement | null>(null)
   const [projects, setProjects] = useState<projectApi.Project[]>([])
+  const [tasks, setTasks] = useState<taskApi.ProjectTask[]>([])
   const [users, setUsers] = useState<userApi.User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -52,14 +63,24 @@ export function InnovationAnalyticsPage() {
           userApi.getAllUsers({ page: 1, pageSize: 250, isActive: true }),
         ])
 
+        const taskLists = await Promise.all(projectData.map(async (project) => {
+          try {
+            return await taskApi.getProjectTasks(project.id)
+          } catch {
+            return []
+          }
+        }))
+
         if (!active) return
         setProjects(projectData)
+        setTasks(taskLists.flat())
         setUsers(userData.data.filter((entry) => !['SuperAdmin', 'SystemAdmin'].includes(normalizeRole(entry.roleName))))
         setError('')
         setLastUpdated(new Date().toLocaleString())
       } catch (loadError) {
         if (!active) return
         setProjects([])
+        setTasks([])
         setUsers([])
         setError(loadError instanceof Error ? loadError.message : 'Failed to load innovation analytics')
       } finally {
@@ -74,7 +95,15 @@ export function InnovationAnalyticsPage() {
     }
   }, [])
 
-  const taskTotals = useMemo(() => getProjectTaskTotals(projects), [projects])
+  const projectTaskTotals = useMemo(() => getProjectTaskTotals(projects), [projects])
+  const taskTotals = useMemo(() => {
+    if (tasks.length) {
+      const completed = tasks.filter((task) => normalizeTaskStatus(task.status) === 'Done').length
+      return { total: tasks.length, completed }
+    }
+
+    return projectTaskTotals
+  }, [projectTaskTotals, tasks])
   const completionRate = taskTotals.total ? Math.round((taskTotals.completed / taskTotals.total) * 100) : 0
   const activeProjects = useMemo(() => countActiveProjects(projects), [projects])
   const projectHealth = projects.length ? Math.round((activeProjects / projects.length) * 100) : 0
@@ -95,10 +124,26 @@ export function InnovationAnalyticsPage() {
     ]
   }, [projects])
 
-  const taskSegments = useMemo(() => [
-    { label: 'Completed', value: taskTotals.completed, color: '#0f766e' },
-    { label: 'Remaining', value: Math.max(taskTotals.total - taskTotals.completed, 0), color: '#cbd5e1' },
-  ], [taskTotals.completed, taskTotals.total])
+  const taskSegments = useMemo(() => {
+    const counts = tasks.length
+      ? tasks.reduce<Record<string, number>>((accumulator, task) => {
+          const label = normalizeTaskStatus(task.status)
+          accumulator[label] = (accumulator[label] || 0) + 1
+          return accumulator
+        }, {})
+      : {
+          Done: taskTotals.completed,
+          'To Do': Math.max(taskTotals.total - taskTotals.completed, 0),
+        }
+
+    return [
+      { label: 'To Do', value: counts['To Do'] || 0, color: '#94a3b8' },
+      { label: 'In Progress', value: counts['In Progress'] || 0, color: '#0f766e' },
+      { label: 'Under Review', value: counts['Under Review'] || 0, color: '#8b5cf6' },
+      { label: 'Done', value: counts.Done || 0, color: '#22c55e' },
+      { label: 'Blocked', value: counts.Blocked || 0, color: '#ef4444' },
+    ]
+  }, [taskTotals.completed, taskTotals.total, tasks])
 
   const dominantStatus = useMemo(() => {
     return statusSegments.reduce<(typeof statusSegments)[number] | null>((current, segment) => {
@@ -116,7 +161,7 @@ export function InnovationAnalyticsPage() {
       ? 'The portfolio is moving, but active execution needs tighter follow-through.'
       : 'The portfolio is carrying more stalled work than active delivery. Focus on reactivation or closure.'
 
-  function exportAnalytics(format: 'csv' | 'json') {
+  function exportAnalyticsCsv() {
     const payload = {
       generatedAt: new Date().toISOString(),
       projects: projects.length,
@@ -126,11 +171,7 @@ export function InnovationAnalyticsPage() {
       completionRate,
       projectHealth,
       statusSegments,
-    }
-
-    if (format === 'json') {
-      downloadFile('innovation-analytics.json', JSON.stringify(payload, null, 2), 'application/json;charset=utf-8')
-      return
+      taskSegments,
     }
 
     const rows = [
@@ -144,29 +185,29 @@ export function InnovationAnalyticsPage() {
     downloadFile('innovation-analytics.csv', rows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n'), 'text/csv;charset=utf-8')
   }
 
-  function printAnalytics() {
+  async function downloadPdf() {
     try {
-      printReportElement(analyticsContentRef.current, {
+      await downloadPdfElement(analyticsContentRef.current, {
         title: 'Innovation Analytics',
         subtitle: lastUpdated ? `Updated ${lastUpdated}` : 'Innovation analytics snapshot',
+        filename: 'innovation-analytics.pdf',
       })
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to open the print preview')
+      toast.error(error instanceof Error ? error.message : 'Failed to generate the PDF report')
     }
   }
 
   return (
     <div ref={analyticsContentRef} className="space-y-6">
       <div data-print-hide="true" className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="secondary" leftIcon={<Printer size={16} />} onClick={printAnalytics}>Print</Button>
-        <Button variant="secondary" leftIcon={<Download size={16} />} onClick={() => exportAnalytics('csv')}>CSV</Button>
-        <Button variant="secondary" leftIcon={<Download size={16} />} onClick={() => exportAnalytics('json')}>JSON</Button>
+        <Button variant="secondary" leftIcon={<Download size={16} />} onClick={downloadPdf}>Download PDF</Button>
+        <Button variant="secondary" leftIcon={<Download size={16} />} onClick={exportAnalyticsCsv}>CSV</Button>
       </div>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_45%),linear-gradient(135deg,#f8fbff_0%,#eff6ff_42%,#f8fafc_100%)] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
+        <div data-print-card="true" className="overflow-hidden rounded-[2rem] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_45%),linear-gradient(135deg,#f8fbff_0%,#eff6ff_42%,#f8fafc_100%)] p-6 shadow-[0_18px_40px_rgba(15,23,42,0.06)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-sky-100 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
@@ -246,9 +287,9 @@ export function InnovationAnalyticsPage() {
           {projects.length === 0 && taskTotals.total === 0 ? (
             <EmptyState title="No analytics data yet" message="Create projects and tasks to generate innovation analytics." />
           ) : (
-            <div data-print-grid="2" className="grid gap-6 2xl:grid-cols-2">
+            <div data-print-grid="2" className="grid gap-6 lg:grid-cols-2">
               <RadialSummaryChart title="Project Status" totalLabel="Portfolio distribution" segments={statusSegments} />
-              <RadialSummaryChart title="Task Completion" totalLabel="Completed versus remaining work" segments={taskSegments} />
+              <RadialSummaryChart title="Task Status" totalLabel="Status distribution across the workflow" segments={taskSegments} />
             </div>
           )}
         </Card>
@@ -278,7 +319,7 @@ export function InnovationAnalyticsPage() {
             {[
               { title: 'Signal collection', detail: 'Projects, task states, contributors, and delivery timelines feed the analytics layer.' },
               { title: 'Distribution visibility', detail: 'Radial breakdowns spotlight where portfolio load and delivery progress are concentrated.' },
-              { title: 'Printable analytics', detail: 'Use Print for browser PDF output, or export CSV/JSON for review packets.' },
+              { title: 'Printable analytics', detail: 'Use Print for browser PDF output, or export CSV for review packets.' },
             ].map((item, index) => (
               <div key={item.title} className="rounded-[1.5rem] border border-slate-200 bg-slate-50/80 p-4">
                 <div className="flex items-center gap-3">

@@ -15,6 +15,7 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../hooks/useAuth'
 import { classNames } from '../../utils/classNames'
+import { truncateWords } from '../../utils/text'
 import { getErrorMessage } from '../../utils/apiError'
 import { formatDate } from '../../utils/formatDate'
 import { projectPriorityClasses } from '../../utils/projectMetrics'
@@ -405,7 +406,7 @@ export function TasksPage() {
                           <td className="px-4 py-4">
                             <div>
                               <p className="font-semibold text-slate-900">{item.title}</p>
-                              <p className="mt-1 text-sm text-slate-500">{item.description || 'No delivery notes were added for this task.'}</p>
+                              <p className="mt-1 text-sm text-slate-500">{truncateWords(item.description) || 'No delivery notes were added for this task.'}</p>
                             </div>
                           </td>
                           <td className="px-4 py-4 text-sm text-slate-700">{item.projectTitle}</td>
@@ -505,7 +506,8 @@ export function TasksPage() {
         task={modalMode === 'edit' ? activeTask : null}
         projectTitle={activeTask ? projectsById.get(activeTask.projectId)?.title : undefined}
         projects={taskProjectOptions}
-        assignees={assigneeOptions}
+        allUsers={assigneeOptions}
+        projectMemberUserIds={projectMemberUserIds}
         isOpen={modalMode !== null}
         isSaving={saving}
         onClose={closeModal}

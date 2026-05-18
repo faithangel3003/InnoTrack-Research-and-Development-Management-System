@@ -12,7 +12,7 @@ public sealed class BruteForceProtectionService(IMemoryCache cache, IServiceScop
     private static readonly TimeSpan IpWindow = TimeSpan.FromMinutes(15);
     private static readonly TimeSpan AccountWindow = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan IpLockDuration = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan AccountLockDuration = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan AccountLockDuration = TimeSpan.FromMinutes(1);
 
     public async Task RecordFailedAttemptAsync(string email, string? ipAddress, CancellationToken cancellationToken = default)
     {
@@ -187,6 +187,17 @@ public sealed class BruteForceProtectionService(IMemoryCache cache, IServiceScop
             .OrderByDescending(x => x.LockExpiresAt)
             .Select(x => x.LockExpiresAt)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public int GetCurrentAttemptCount(string email)
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        if (cache.TryGetValue<AttemptCounter>($"bf-account:{normalizedEmail}", out var counter) && counter is not null)
+        {
+            return counter.Count;
+        }
+
+        return 0;
     }
 
     private static string? NormalizeIp(string? ipAddress)

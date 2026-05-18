@@ -1,6 +1,7 @@
 import { FolderKanban, PencilLine, Plus, Search, TimerReset, Trash2, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as projectApi from '../../api/projectApi'
+import * as teamApi from '../../api/teamApi'
 import * as userApi from '../../api/userApi'
 import { AdminMetricCard } from '../../components/admin/AdminMetricCard'
 import { ProjectFormModal, type ProjectFormValues } from '../../components/admin/projects/ProjectFormModal'
@@ -18,10 +19,12 @@ import { getErrorMessage } from '../../utils/apiError'
 import { formatDate } from '../../utils/formatDate'
 import { countActiveProjects, getProjectProgress, getProjectTaskTotals, normalizeProjectStatus, projectPriorityClasses, projectStatusClasses } from '../../utils/projectMetrics'
 import { normalizeRole } from '../../utils/roleHelpers'
+import { decodeHtmlEntities, truncateWords } from '../../utils/text'
 
 type ProjectAssignment = {
   projectManagerUserId: string
   memberUserIds: string[]
+  teamId?: string
 }
 
 const projectPageSize = 8
@@ -30,6 +33,7 @@ export function ProjectsPage() {
   const toast = useToast()
   const { user } = useAuth()
   const [projects, setProjects] = useState<projectApi.Project[]>([])
+  const [teams, setTeams] = useState<teamApi.Team[]>([])
   const [users, setUsers] = useState<userApi.User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -39,7 +43,7 @@ export function ProjectsPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null)
   const [activeProject, setActiveProject] = useState<projectApi.Project | null>(null)
   const [deletingProject, setDeletingProject] = useState<projectApi.Project | null>(null)
-  const [assignment, setAssignment] = useState<ProjectAssignment>({ projectManagerUserId: '', memberUserIds: [] })
+  const [assignment, setAssignment] = useState<ProjectAssignment>({ projectManagerUserId: '', memberUserIds: [], teamId: '' })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -50,7 +54,21 @@ export function ProjectsPage() {
     setLoading(true)
     try {
       const data = await projectApi.getAllProjects()
-      setProjects(data)
+      if (user?.role === 'TeamMember' && user.id) {
+        // Filter to projects the current team member is assigned to.
+        const memberLists = await Promise.all(
+          data.map((p) => projectApi.getProjectMembers(p.id).then((m) => ({ id: p.id, members: m })).catch(() => ({ id: p.id, members: [] }))),
+        )
+
+        const assignedProjectIds = new Set(
+          memberLists.filter((entry) => entry.members.some((m) => m.userId === user.id)).map((e) => e.id),
+        )
+
+        const filtered = data.filter((p) => assignedProjectIds.has(p.id))
+        setProjects(filtered)
+      } else {
+        setProjects(data)
+      }
       setError('')
     } catch (loadError) {
       setProjects([])
@@ -61,18 +79,43 @@ export function ProjectsPage() {
   }, [])
 
   const loadUsers = useCallback(async () => {
+    // TeamMembers cannot access the users endpoint and don't need it
+    // (they have no create/edit project permissions)
+    if (user?.role === 'TeamMember') {
+      setUsers([])
+      return
+    }
     try {
       const response = await userApi.getAllUsers({ page: 1, pageSize: 250, isActive: true })
       setUsers(response.data)
     } catch {
       setUsers([])
     }
-  }, [])
+  }, [user?.role])
+
+  const loadTeams = useCallback(async () => {
+    if (!user?.organizationId) {
+      setTeams([])
+      return
+    }
+    // TeamMembers cannot access the teams endpoint and don't need it
+    if (user?.role === 'TeamMember') {
+      setTeams([])
+      return
+    }
+    try {
+      const data = await teamApi.getAllTeams({ organizationId: user.organizationId })
+      setTeams(data)
+    } catch {
+      setTeams([])
+    }
+  }, [user?.organizationId, user?.role])
 
   useEffect(() => {
     void loadProjects()
     void loadUsers()
-  }, [loadProjects, loadUsers])
+    void loadTeams()
+  }, [loadProjects, loadTeams, loadUsers])
 
   const eligibleUsers = useMemo(() => {
     return users.filter((entry) => {
@@ -93,10 +136,24 @@ export function ProjectsPage() {
     }))
   }, [eligibleUsers, user?.id, user?.role])
 
-  const memberOptions = useMemo(() => eligibleUsers.map((entry) => ({
-    value: entry.id,
-    label: entry.name || [entry.firstName, entry.lastName].filter(Boolean).join(' ').trim() || entry.email,
-  })), [eligibleUsers])
+  const teamOptions = useMemo(() => [
+    { value: '', label: teams.length ? 'Select team' : 'No teams available' },
+    ...teams.map((team) => ({ value: team.id, label: decodeHtmlEntities(team.name) })),
+  ], [teams])
+
+  const teamMembersById = useMemo(() => {
+    return teams.reduce<Record<string, Array<{ value: string; label: string }>>>((accumulator, team) => {
+      const members = eligibleUsers
+        .filter((entry) => entry.teamId === team.id)
+        .map((entry) => ({
+          value: entry.id,
+          label: entry.name || [entry.firstName, entry.lastName].filter(Boolean).join(' ').trim() || entry.email,
+        }))
+
+      accumulator[team.id] = members
+      return accumulator
+    }, {})
+  }, [eligibleUsers, teams])
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -154,12 +211,12 @@ export function ProjectsPage() {
   function closeModal() {
     setModalMode(null)
     setActiveProject(null)
-    setAssignment({ projectManagerUserId: '', memberUserIds: [] })
+    setAssignment({ projectManagerUserId: '', memberUserIds: [], teamId: '' })
   }
 
   function openCreateModal() {
     setActiveProject(null)
-    setAssignment({ projectManagerUserId: projectManagerOptions[0]?.value || '', memberUserIds: [] })
+    setAssignment({ projectManagerUserId: projectManagerOptions[0]?.value || '', memberUserIds: [], teamId: '' })
     setModalMode('create')
   }
 
@@ -169,12 +226,20 @@ export function ProjectsPage() {
     try {
       const members = await projectApi.getProjectMembers(project.id)
       const lead = members.find((member) => member.memberRole === 'Lead')
+      const contributorIds = members.filter((member) => member.memberRole !== 'Lead').map((member) => member.userId)
+      const contributorTeamIds = contributorIds
+        .map((memberId) => users.find((entry) => entry.id === memberId)?.teamId)
+        .filter((teamId): teamId is string => Boolean(teamId))
+      const inferredTeamId = contributorTeamIds.length && new Set(contributorTeamIds).size === 1
+        ? contributorTeamIds[0]
+        : ''
       setAssignment({
         projectManagerUserId: lead?.userId || projectManagerOptions[0]?.value || '',
-        memberUserIds: members.filter((member) => member.memberRole !== 'Lead').map((member) => member.userId),
+        memberUserIds: contributorIds,
+        teamId: inferredTeamId,
       })
     } catch {
-      setAssignment({ projectManagerUserId: projectManagerOptions[0]?.value || '', memberUserIds: [] })
+      setAssignment({ projectManagerUserId: projectManagerOptions[0]?.value || '', memberUserIds: [], teamId: '' })
     }
   }
 
@@ -353,7 +418,7 @@ export function ProjectsPage() {
                           <td className="px-4 py-4">
                             <div>
                               <p className="font-semibold text-slate-900">{project.title}</p>
-                              <p className="mt-1 text-sm text-slate-500">{project.description || 'No project description provided.'}</p>
+                              <p className="mt-1 text-sm text-slate-500">{truncateWords(project.description) || 'No project description provided.'}</p>
                             </div>
                           </td>
                           <td className="px-4 py-4">
@@ -451,9 +516,11 @@ export function ProjectsPage() {
         mode={modalMode === 'edit' ? 'edit' : 'create'}
         project={modalMode === 'edit' ? activeProject : null}
         projectManagerOptions={projectManagerOptions}
-        memberOptions={memberOptions}
+        teamOptions={teamOptions}
+        teamMembersById={teamMembersById}
         assignedProjectManagerId={assignment.projectManagerUserId}
         assignedMemberIds={assignment.memberUserIds}
+        assignedTeamId={assignment.teamId}
         isOpen={modalMode !== null}
         isSaving={saving}
         onClose={closeModal}

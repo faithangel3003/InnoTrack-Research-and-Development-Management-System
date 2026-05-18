@@ -65,7 +65,7 @@ export function useTeams(selectedOrganizationId?: string | null) {
     setSaving(true)
     try {
       const updated = await teamApi.updateTeam(id, payload)
-      await fetchTeams()
+      setTeams((current) => current.map((team) => (team.id === id ? updated : team)))
       return updated
     } finally {
       setSaving(false)

@@ -16,6 +16,7 @@ import { Select } from '../../components/ui/Select'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../hooks/useAuth'
 import { formatDate, relativeTime } from '../../utils/formatDate'
+import { decodeHtmlEntities } from '../../utils/text'
 import { normalizeRole } from '../../utils/roleHelpers'
 
 type UploadFormState = {
@@ -237,7 +238,16 @@ export function ResearchDocumentationPage() {
         includeArchived: statusFilter !== 'active',
       })
 
-      setDocuments(data)
+      const decoded = data.map((item) => ({
+        ...item,
+        title: decodeHtmlEntities(item.title),
+        description: decodeHtmlEntities(item.description),
+        references: decodeHtmlEntities(item.references),
+        categoryName: item.categoryName ? decodeHtmlEntities(item.categoryName) : item.categoryName,
+        projectTitle: item.projectTitle ? decodeHtmlEntities(item.projectTitle) : item.projectTitle,
+      }))
+
+      setDocuments(decoded)
       setError('')
     } catch (loadError) {
       setDocuments([])
@@ -300,7 +310,16 @@ export function ResearchDocumentationPage() {
           return
         }
 
-        setSelectedDocument(data)
+        const decoded = data ? {
+          ...data,
+          title: decodeHtmlEntities(data.title),
+          description: decodeHtmlEntities(data.description),
+          references: decodeHtmlEntities(data.references),
+          categoryName: data.categoryName ? decodeHtmlEntities(data.categoryName) : data.categoryName,
+          projectTitle: data.projectTitle ? decodeHtmlEntities(data.projectTitle) : data.projectTitle,
+        } : null
+
+        setSelectedDocument(decoded)
       } catch (loadError) {
         if (!active) {
           return
@@ -374,8 +393,8 @@ export function ResearchDocumentationPage() {
   function openEditCategory(category: documentApi.DocumentCategory) {
     setCategoryForm({
       id: category.id,
-      name: category.name,
-      description: category.description || '',
+      name: decodeHtmlEntities(category.name),
+      description: decodeHtmlEntities(category.description) || '',
     })
     setCategoryOpen(true)
   }
@@ -396,8 +415,8 @@ export function ResearchDocumentationPage() {
 
   function upsertCategoryState(category: documentApi.DocumentCategory) {
     setCategories((current) => [...current.filter((entry) => entry.id !== category.id), category].sort((left, right) => left.name.localeCompare(right.name)))
-    setDocuments((current) => current.map((entry) => entry.categoryId === category.id ? { ...entry, categoryName: category.name } : entry))
-    setSelectedDocument((current) => current && current.categoryId === category.id ? { ...current, categoryName: category.name } : current)
+    setDocuments((current) => current.map((entry) => entry.categoryId === category.id ? { ...entry, categoryName: decodeHtmlEntities(category.name) } : entry))
+    setSelectedDocument((current) => current && current.categoryId === category.id ? { ...current, categoryName: decodeHtmlEntities(category.name) } : current)
   }
 
   function removeCategoryState(category: documentApi.DocumentCategory) {
@@ -484,7 +503,15 @@ export function ResearchDocumentationPage() {
       toast.success('Document uploaded successfully')
       setUploadOpen(false)
       setUploadForm(emptyUploadForm)
-      setSelectedDocument(created)
+      const decoded = {
+        ...created,
+        title: decodeHtmlEntities(created.title),
+        description: decodeHtmlEntities(created.description),
+        references: decodeHtmlEntities(created.references),
+        categoryName: created.categoryName ? decodeHtmlEntities(created.categoryName) : created.categoryName,
+        projectTitle: created.projectTitle ? decodeHtmlEntities(created.projectTitle) : created.projectTitle,
+      }
+      setSelectedDocument(decoded)
       await reloadAfterMutation(created.id)
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : 'Failed to upload document')
@@ -512,7 +539,15 @@ export function ResearchDocumentationPage() {
 
       toast.success('Document details updated')
       setEditOpen(false)
-      setSelectedDocument(updated)
+      const decoded = {
+        ...updated,
+        title: decodeHtmlEntities(updated.title),
+        description: decodeHtmlEntities(updated.description),
+        references: decodeHtmlEntities(updated.references),
+        categoryName: updated.categoryName ? decodeHtmlEntities(updated.categoryName) : updated.categoryName,
+        projectTitle: updated.projectTitle ? decodeHtmlEntities(updated.projectTitle) : updated.projectTitle,
+      }
+      setSelectedDocument(decoded)
       await reloadAfterMutation(updated.id)
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : 'Failed to update document')
@@ -530,7 +565,15 @@ export function ResearchDocumentationPage() {
     try {
       const updated = await documentApi.archiveDocument(selectedDocument.id)
       toast.success('Document archived')
-      setSelectedDocument(updated)
+      const decoded = {
+        ...updated,
+        title: decodeHtmlEntities(updated.title),
+        description: decodeHtmlEntities(updated.description),
+        references: decodeHtmlEntities(updated.references),
+        categoryName: updated.categoryName ? decodeHtmlEntities(updated.categoryName) : updated.categoryName,
+        projectTitle: updated.projectTitle ? decodeHtmlEntities(updated.projectTitle) : updated.projectTitle,
+      }
+      setSelectedDocument(decoded)
       await reloadAfterMutation(updated.id)
     } catch (archiveError) {
       toast.error(archiveError instanceof Error ? archiveError.message : 'Failed to archive document')
@@ -578,7 +621,15 @@ export function ResearchDocumentationPage() {
       toast.success('Document version uploaded')
       setVersionOpen(false)
       setVersionForm(emptyVersionForm)
-      setSelectedDocument(updated)
+      const decoded = {
+        ...updated,
+        title: decodeHtmlEntities(updated.title),
+        description: decodeHtmlEntities(updated.description),
+        references: decodeHtmlEntities(updated.references),
+        categoryName: updated.categoryName ? decodeHtmlEntities(updated.categoryName) : updated.categoryName,
+        projectTitle: updated.projectTitle ? decodeHtmlEntities(updated.projectTitle) : updated.projectTitle,
+      }
+      setSelectedDocument(decoded)
       await reloadAfterMutation(updated.id)
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : 'Failed to upload a new version')
@@ -744,7 +795,7 @@ export function ResearchDocumentationPage() {
               onChange={(event) => setProjectFilter(event.target.value)}
             />
             <Select
-              options={[{ value: '', label: 'All Categories' }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
+              options={[{ value: '', label: 'All Categories' }, ...categories.map((category) => ({ value: category.id, label: decodeHtmlEntities(category.name) }))]}
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
             />
@@ -1226,8 +1277,8 @@ export function ResearchDocumentationPage() {
                 {categories.map((category) => (
                   <div key={category.id} className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-slate-200 px-4 py-4">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">{category.name}</p>
-                      <p className="mt-1 text-sm text-slate-500">{category.description || 'No description provided.'}</p>
+                      <p className="text-sm font-semibold text-slate-900">{decodeHtmlEntities(category.name)}</p>
+                      <p className="mt-1 text-sm text-slate-500">{decodeHtmlEntities(category.description) || 'No description provided.'}</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <Button variant="secondary" size="sm" onClick={() => openEditCategory(category)}>Edit</Button>

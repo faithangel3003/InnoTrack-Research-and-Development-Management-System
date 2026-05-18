@@ -13,7 +13,7 @@ namespace InnoTrack.RDMS.Api.Controllers;
 public class TeamsController(ITeamService teamService) : ControllerBase
 {
     [HttpGet]
-    [Authorize(Roles = RoleNames.SuperAdmin + "," + RoleNames.SystemAdmin)]
+    [Authorize(Roles = RoleNames.SuperAdmin + "," + RoleNames.SystemAdmin + "," + RoleNames.ProjectManager)]
     [ProducesResponseType(typeof(List<TeamDto>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTeams([FromQuery] Guid? organizationId, CancellationToken cancellationToken)
     {

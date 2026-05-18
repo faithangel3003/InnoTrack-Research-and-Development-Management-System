@@ -20,7 +20,7 @@ const toneMap = {
 
 export function AdminMetricCard({ label, value, helper, icon, tone = 'sky', className }: AdminMetricCardProps) {
   return (
-    <article className={classNames('rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_14px_32px_rgba(15,23,42,0.04)]', className)}>
+    <article data-print-card="true" className={classNames('rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_14px_32px_rgba(15,23,42,0.04)]', className)}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm font-medium text-slate-500">{label}</p>

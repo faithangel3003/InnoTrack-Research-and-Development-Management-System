@@ -1,6 +1,7 @@
 import { Ban, Pencil, Shield } from 'lucide-react'
 import type { User } from '../../api/userApi'
 import { classNames } from '../../utils/classNames'
+import { decodeHtmlEntities } from '../../utils/text'
 import { Avatar } from '../ui/Avatar'
 import { RoleBadge } from './RoleBadge'
 
@@ -17,6 +18,7 @@ export function UserTableRow({ user, canChangeRole, onView, onEdit, onDeactivate
   const fullName = user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email
   const isActive = user.isActive ?? user.status === 'active'
   const lastSeen = user.lastLogin || user.updatedAtUtc || user.createdAtUtc
+  const teamLabel = decodeHtmlEntities(user.teamName) || 'No team'
   const lastSeenLabel = lastSeen ? new Date(lastSeen).toLocaleDateString('en-US') : 'Never'
 
   return (
@@ -44,7 +46,7 @@ export function UserTableRow({ user, canChangeRole, onView, onEdit, onDeactivate
       <td className="px-4 py-4"><RoleBadge role={user.roleName || ''} appearance="text" /></td>
       <td className="px-4 py-4">
         <div>
-          <p className="text-sm font-semibold text-slate-900">{user.teamName || 'No team'}</p>
+          <p className="text-sm font-semibold text-slate-900">{teamLabel}</p>
           <p className="text-xs text-slate-400">{user.organizationName || 'Company tenant'}</p>
         </div>
       </td>

@@ -274,7 +274,7 @@ export function AppRouter() {
       <Route
         path="/admin/projects"
         element={
-          <RoleRoute allowedRoles={['SystemAdmin']}>
+          <RoleRoute allowedRoles={['SystemAdmin', 'ProjectManager', 'TeamMember']}>
             <AppLayout>
               <RouteErrorBoundary><SuspendedRoute><ProjectsPage /></SuspendedRoute></RouteErrorBoundary>
             </AppLayout>

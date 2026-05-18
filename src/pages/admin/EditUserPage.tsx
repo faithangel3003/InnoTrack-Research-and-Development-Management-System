@@ -18,6 +18,7 @@ import { useRoles } from '../../hooks/useRoles'
 import { useTeams } from '../../hooks/useTeams'
 import { useUsers } from '../../hooks/useUsers'
 import { normalizeRole } from '../../utils/roleHelpers'
+import { decodeHtmlEntities } from '../../utils/text'
 
 const schema = z.object({
   firstName: z.string().min(2).max(50),
@@ -82,7 +83,7 @@ export function EditUserPage() {
     [organizations],
   )
   const teamOptions = useMemo(
-    () => [{ value: '', label: teams.length > 0 ? 'No team' : 'No team available' }, ...teams.map((team) => ({ value: team.id, label: team.name }))],
+    () => [{ value: '', label: teams.length > 0 ? 'No team' : 'No team available' }, ...teams.map((team) => ({ value: team.id, label: decodeHtmlEntities(team.name) }))],
     [teams],
   )
 

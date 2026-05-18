@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck, Sparkles, Users, Mail } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck, Sparkles, Users, Mail, AlertTriangle, ShieldX } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { z } from 'zod'
@@ -20,6 +20,10 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>
 
+// Thresholds — must match backend constants
+const WARN_AFTER_ATTEMPTS = 2
+const LOCK_AFTER_ATTEMPTS = 5
+
 const loginHighlights: AuthShowcaseHighlight[] = [
   {
     title: 'Continue active research work',
@@ -38,6 +42,29 @@ const loginHighlights: AuthShowcaseHighlight[] = [
   },
 ]
 
+/** Parse structured error codes from the API */
+function parseLoginError(message: string): { type: 'locked'; seconds: number } | { type: 'attempt'; count: number } | { type: 'plain'; message: string } {
+  // LOCKED:<seconds>
+  const lockedMatch = /^LOCKED:(\d+)$/i.exec(message)
+  if (lockedMatch) {
+    return { type: 'locked', seconds: parseInt(lockedMatch[1], 10) }
+  }
+  // ATTEMPT:<count>:Invalid credentials
+  const attemptMatch = /^ATTEMPT:(\d+):/i.exec(message)
+  if (attemptMatch) {
+    return { type: 'attempt', count: parseInt(attemptMatch[1], 10) }
+  }
+  return { type: 'plain', message }
+}
+
+function formatCountdown(seconds: number) {
+  if (seconds <= 0) return '0s'
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return s > 0 ? `${m}m ${s}s` : `${m}m`
+}
+
 export function LoginPage() {
   const toast = useToast()
   const { login } = useAuth()
@@ -45,6 +72,37 @@ export function LoginPage() {
   const [recaptchaToken, setRecaptchaToken] = useState('')
   const [recaptchaResetKey, setRecaptchaResetKey] = useState(0)
   const [recaptchaError, setRecaptchaError] = useState<string | null>(null)
+  const [failedAttempts, setFailedAttempts] = useState(0)
+  const [lockoutSeconds, setLockoutSeconds] = useState(0)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Countdown timer when locked
+  useEffect(() => {
+    if (lockoutSeconds <= 0) {
+      if (countdownRef.current) {
+        clearInterval(countdownRef.current)
+        countdownRef.current = null
+      }
+      return
+    }
+
+    countdownRef.current = setInterval(() => {
+      setLockoutSeconds((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current!)
+          countdownRef.current = null
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current)
+    }
+  }, [lockoutSeconds])
+
+  const isLocked = lockoutSeconds > 0
 
   const {
     register,
@@ -69,6 +127,8 @@ export function LoginPage() {
   }
 
   async function onSubmit(values: FormValues) {
+    if (isLocked) return
+
     if (!recaptchaToken) {
       setRecaptchaError('Please complete the reCAPTCHA checkbox before signing in.')
       return
@@ -79,13 +139,31 @@ export function LoginPage() {
       await login(values.email, values.password, recaptchaToken)
       toast.dismiss(toastId)
       toast.success('Welcome back')
+      setFailedAttempts(0)
+      setLockoutSeconds(0)
     } catch (error) {
       toast.dismiss(toastId)
-      const message = error instanceof Error ? error.message : 'Login failed'
-      resetRecaptcha(/recaptcha/i.test(message) ? message : 'Please complete the reCAPTCHA checkbox again before retrying.')
-      toast.error(message)
+      const rawMessage = error instanceof Error ? error.message : 'Login failed'
+      const parsed = parseLoginError(rawMessage)
+
+      if (parsed.type === 'locked') {
+        setLockoutSeconds(parsed.seconds)
+        setFailedAttempts(LOCK_AFTER_ATTEMPTS)
+        resetRecaptcha(null)
+        // Don't show a toast — the banner is enough
+      } else if (parsed.type === 'attempt') {
+        setFailedAttempts(parsed.count)
+        resetRecaptcha(/recaptcha/i.test(rawMessage) ? rawMessage : 'Please complete the reCAPTCHA checkbox again before retrying.')
+        toast.error('Invalid email or password.')
+      } else {
+        resetRecaptcha(/recaptcha/i.test(rawMessage) ? rawMessage : 'Please complete the reCAPTCHA checkbox again before retrying.')
+        toast.error(parsed.message)
+      }
     }
   }
+
+  const attemptsRemaining = LOCK_AFTER_ATTEMPTS - failedAttempts
+  const showWarning = failedAttempts >= WARN_AFTER_ATTEMPTS && !isLocked
 
   return (
     <div className="min-h-screen bg-[#f6f8fc] text-slate-900">
@@ -127,7 +205,35 @@ export function LoginPage() {
                 </p>
               </header>
 
-              <form className="mt-8 space-y-5" onSubmit={handleSubmit(onSubmit)}>
+              {/* Lockout banner */}
+              {isLocked ? (
+                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                  <ShieldX className="mt-0.5 shrink-0 text-rose-600" size={18} />
+                  <div>
+                    <p className="text-sm font-semibold text-rose-800">Account temporarily locked</p>
+                    <p className="mt-1 text-sm text-rose-700">
+                      Too many failed attempts. Please wait{' '}
+                      <span className="font-bold tabular-nums">{formatCountdown(lockoutSeconds)}</span>{' '}
+                      before trying again.
+                    </p>
+                  </div>
+                </div>
+              ) : showWarning ? (
+                /* Warning banner — shown after WARN_AFTER_ATTEMPTS failures */
+                <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                  <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Warning: account lockout approaching</p>
+                    <p className="mt-1 text-sm text-amber-700">
+                      {attemptsRemaining === 1
+                        ? 'This is your last attempt. Your account will be locked for 1 minute after the next failure.'
+                        : `Your account will be locked for 1 minute after ${attemptsRemaining} more failed attempt${attemptsRemaining !== 1 ? 's' : ''}.`}
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              <form className="mt-6 space-y-5" onSubmit={handleSubmit(onSubmit)}>
                 <div>
                   <FieldLabel label="Email" required />
                   <div className="relative">
@@ -135,6 +241,7 @@ export function LoginPage() {
                     <input
                       className={fieldClass(Boolean(errors.email), true)}
                       placeholder="admin@innotrack.com"
+                      disabled={isLocked}
                       {...register('email')}
                     />
                   </div>
@@ -149,6 +256,7 @@ export function LoginPage() {
                       className={fieldClass(Boolean(errors.password), true)}
                       placeholder="Enter your password"
                       type={showPassword ? 'text' : 'password'}
+                      disabled={isLocked}
                       {...register('password')}
                     />
                     <button
@@ -156,6 +264,7 @@ export function LoginPage() {
                       onClick={() => setShowPassword((current) => !current)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-600"
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
+                      disabled={isLocked}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -180,11 +289,11 @@ export function LoginPage() {
                 <Button
                   type="submit"
                   className={classNames('h-12 w-full rounded-2xl text-base', authPrimaryButtonClass)}
-                  disabled={isSubmitting || !recaptchaToken}
+                  disabled={isSubmitting || !recaptchaToken || isLocked}
                   loading={isSubmitting}
                   rightIcon={<ArrowRight className="h-4 w-4" />}
                 >
-                  Sign In
+                  {isLocked ? `Locked — wait ${formatCountdown(lockoutSeconds)}` : 'Sign In'}
                 </Button>
               </form>
 
@@ -217,7 +326,7 @@ function FieldError({ message }: { message?: string }) {
 
 function fieldClass(hasError: boolean, hasLeftIcon = false) {
   return classNames(
-    'w-full rounded-2xl border bg-white px-4 py-3.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400',
+    'w-full rounded-2xl border bg-white px-4 py-3.5 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 disabled:cursor-not-allowed disabled:opacity-50',
     authFieldFocusClass,
     hasLeftIcon && 'pl-12',
     hasError ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200',

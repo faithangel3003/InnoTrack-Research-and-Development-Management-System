@@ -18,6 +18,7 @@ const schema = z.object({
   title: z.string().trim().min(3, 'Project title must be at least 3 characters').max(255, 'Project title must be 255 characters or less'),
   description: z.string().max(1200, 'Description must be 1200 characters or less').optional().or(z.literal('')),
   projectManagerUserId: z.string().optional().or(z.literal('')),
+  teamId: z.string().optional().or(z.literal('')),
   memberUserIds: z.array(z.string()),
   priority: z.enum(projectPriorityValues),
   startDate: z.string().min(1, 'Start date is required'),
@@ -35,9 +36,11 @@ type ProjectFormModalProps = {
   mode: 'create' | 'edit'
   project: Project | null
   projectManagerOptions: Array<{ value: string; label: string }>
-  memberOptions: Array<{ value: string; label: string }>
+  teamOptions: Array<{ value: string; label: string }>
+  teamMembersById: Record<string, Array<{ value: string; label: string }>>
   assignedProjectManagerId?: string
   assignedMemberIds?: string[]
+  assignedTeamId?: string
   isOpen: boolean
   isSaving: boolean
   onClose: () => void
@@ -48,7 +51,12 @@ function toDateInputValue(value: string | Date) {
   return new Date(value).toISOString().slice(0, 10)
 }
 
-function defaultValues(project: Project | null, assignedProjectManagerId = '', assignedMemberIds: string[] = []): ProjectFormValues {
+function defaultValues(
+  project: Project | null,
+  assignedProjectManagerId = '',
+  assignedMemberIds: string[] = [],
+  assignedTeamId = '',
+): ProjectFormValues {
   const now = new Date()
   const endDate = new Date(now)
   endDate.setDate(endDate.getDate() + 30)
@@ -58,6 +66,7 @@ function defaultValues(project: Project | null, assignedProjectManagerId = '', a
         title: project.title,
         description: project.description || '',
         projectManagerUserId: assignedProjectManagerId,
+        teamId: assignedTeamId,
         memberUserIds: assignedMemberIds,
         priority: (project.priority as ProjectPriority) || 'Medium',
         startDate: toDateInputValue(project.startDate),
@@ -69,6 +78,7 @@ function defaultValues(project: Project | null, assignedProjectManagerId = '', a
         title: '',
         description: '',
         projectManagerUserId: assignedProjectManagerId,
+        teamId: assignedTeamId,
         memberUserIds: assignedMemberIds,
         priority: 'Medium',
         startDate: toDateInputValue(now),
@@ -82,9 +92,11 @@ export function ProjectFormModal({
   mode,
   project,
   projectManagerOptions,
-  memberOptions,
+  teamOptions,
+  teamMembersById,
   assignedProjectManagerId = '',
   assignedMemberIds = [],
+  assignedTeamId = '',
   isOpen,
   isSaving,
   onClose,
@@ -104,20 +116,38 @@ export function ProjectFormModal({
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: defaultValues(project, assignedProjectManagerId, assignedMemberIds),
+    defaultValues: defaultValues(project, assignedProjectManagerId, assignedMemberIds, assignedTeamId),
   })
+
+  const selectedTeamId = watch('teamId') || ''
+  const selectedTeamMembers = selectedTeamId ? teamMembersById[selectedTeamId] || [] : []
+
+  useEffect(() => {
+    register('teamId')
+    register('memberUserIds')
+  }, [register])
 
   useEffect(() => {
     if (!isOpen) {
       return
     }
 
-    reset(defaultValues(project, assignedProjectManagerId, assignedMemberIds))
+    reset(defaultValues(project, assignedProjectManagerId, assignedMemberIds, assignedTeamId))
     setFormError('')
-  }, [assignedMemberIds, assignedProjectManagerId, isOpen, project, reset])
+  }, [assignedMemberIds, assignedProjectManagerId, assignedTeamId, isOpen, project, reset])
+
+  useEffect(() => {
+    if (!selectedTeamId) {
+      return
+    }
+
+    setValue('memberUserIds', selectedTeamMembers.map((member) => member.value), { shouldDirty: true })
+  }, [selectedTeamId, selectedTeamMembers, setValue])
 
   async function submit(values: ProjectFormValues) {
     try {
@@ -201,20 +231,36 @@ export function ProjectFormModal({
                 options={managerOptions}
                 {...register('projectManagerUserId')}
               />
-              <label className="block space-y-1.5">
-                <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">Team Members</span>
-                <select
-                  multiple
-                  className="min-h-[8rem] w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm text-slate-700 transition focus:border-sky-200 focus:bg-white focus:outline-none focus:ring-4 focus:ring-sky-100"
-                  disabled={!memberOptions.length}
-                  {...register('memberUserIds')}
-                >
-                  {memberOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-                <span className="text-xs text-slate-400">Hold Ctrl to select multiple members.</span>
-              </label>
+              <div className="space-y-3">
+                <Select
+                  label="Team"
+                  options={teamOptions}
+                  value={selectedTeamId}
+                  onChange={(event) => {
+                    setValue('teamId', event.target.value, { shouldDirty: true })
+                    const members = teamMembersById[event.target.value] || []
+                    setValue('memberUserIds', members.map((member) => member.value), { shouldDirty: true })
+                  }}
+                  hint="Select a team to automatically include all members assigned to it."
+                />
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Team Members</span>
+                    <span className="text-xs text-slate-400">{selectedTeamMembers.length} members</span>
+                  </div>
+                  {selectedTeamMembers.length ? (
+                    <ul className="mt-3 max-h-28 space-y-1 overflow-y-auto text-sm text-slate-700">
+                      {selectedTeamMembers.map((member) => (
+                        <li key={member.value} className="rounded-lg bg-white/80 px-3 py-1.5">
+                          {member.label}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-3 text-sm text-slate-400">Select a team to view its members.</p>
+                  )}
+                </div>
+              </div>
             </div>
 
             <Textarea

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { CalendarClock, ListTodo, Sparkles, UserRound } from 'lucide-react'
+import { CalendarClock, ListTodo, Sparkles, Users } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import type { ProjectTask, TaskPriority, TaskStatus } from '../../../api/taskApi'
 import { getErrorMessage } from '../../../utils/apiError'
@@ -31,7 +31,10 @@ type TaskFormModalProps = {
   task: ProjectTask | null
   projectTitle?: string
   projects: Array<{ value: string; label: string }>
-  assignees: Array<{ value: string; label: string }>
+  /** All users as options — used as fallback and for resolving names */
+  allUsers: Array<{ value: string; label: string }>
+  /** Map of projectId → array of member userIds */
+  projectMemberUserIds: Record<string, string[]>
   isOpen: boolean
   isSaving: boolean
   onClose: () => void
@@ -77,7 +80,8 @@ export function TaskFormModal({
   task,
   projectTitle,
   projects,
-  assignees,
+  allUsers,
+  projectMemberUserIds,
   isOpen,
   isSaving,
   onClose,
@@ -90,17 +94,38 @@ export function TaskFormModal({
     register,
     handleSubmit,
     reset,
+    control,
+    setValue,
     formState: { errors },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(schema),
     defaultValues: defaultValues(task, projects),
   })
 
+  // Watch the selected project so the assignee list updates reactively
+  const selectedProjectId = useWatch({ control, name: 'projectId' })
+
+  // Build assignee options scoped to the selected project's members
+  const assigneeOptions = useMemo(() => {
+    const memberIds = projectMemberUserIds[selectedProjectId] ?? []
+    if (memberIds.length === 0) {
+      // Fall back to all users if member list hasn't loaded yet
+      return allUsers
+    }
+    const memberSet = new Set(memberIds)
+    return allUsers.filter((u) => memberSet.has(u.value))
+  }, [selectedProjectId, projectMemberUserIds, allUsers])
+
+  // When the project changes in create mode, clear the assignee
+  useEffect(() => {
+    if (mode !== 'create') return
+    setValue('assignedToUserId', '')
+  }, [selectedProjectId, mode, setValue])
+
   useEffect(() => {
     if (!isOpen) {
       return
     }
-
     reset(defaultValues(task, projects))
     setFormError('')
   }, [isOpen, projects, reset, task])
@@ -118,6 +143,13 @@ export function TaskFormModal({
   }
 
   const projectSelectionLocked = mode === 'edit'
+
+  const selectedProjectLabel = useMemo(
+    () => projects.find((p) => p.value === selectedProjectId)?.label ?? '',
+    [projects, selectedProjectId],
+  )
+
+  const memberCount = projectMemberUserIds[selectedProjectId]?.length ?? 0
 
   return (
     <Modal
@@ -141,10 +173,12 @@ export function TaskFormModal({
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-700">Execution Queue</p>
             <h3 className="mt-2 text-lg font-semibold text-slate-900">
-              {mode === 'create' ? 'Capture a task with clear ownership and due date' : 'Keep task ownership, due date, and delivery status aligned'}
+              {mode === 'create'
+                ? 'Assign a task to a project member'
+                : 'Keep task ownership, due date, and delivery status aligned'}
             </h3>
             <p className="mt-1 max-w-2xl text-sm text-slate-600">
-              This task form validates the assignee, due date, and status before saving. Invalid fields are highlighted immediately.
+              Select a project first — the assignee list will show only that project&apos;s members.
             </p>
           </div>
           <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-3 text-sm text-slate-600 shadow-sm">
@@ -196,22 +230,42 @@ export function TaskFormModal({
               />
             )}
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Select
-                label="Assignee"
-                requiredField
-                error={errors.assignedToUserId?.message}
-                options={assignees.length ? assignees : [{ value: '', label: 'No assignees available' }]}
-                disabled={!assignees.length}
-                {...register('assignedToUserId')}
-              />
-              <Select
-                label="Priority"
-                requiredField
-                error={errors.priority?.message}
-                options={taskPriorityValues.map((value) => ({ value, label: value }))}
-                {...register('priority')}
-              />
+            {/* Assignee scoped to project members */}
+            <div className="space-y-1.5">
+              {selectedProjectId && memberCount > 0 ? (
+                <p className="flex items-center gap-1.5 text-xs text-slate-500">
+                  <Users size={12} />
+                  {selectedProjectLabel
+                    ? `${memberCount} member${memberCount !== 1 ? 's' : ''} in "${selectedProjectLabel}"`
+                    : `${memberCount} project member${memberCount !== 1 ? 's' : ''} available`}
+                </p>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Select
+                  label="Assignee"
+                  requiredField
+                  error={errors.assignedToUserId?.message}
+                  options={
+                    assigneeOptions.length
+                      ? assigneeOptions
+                      : [
+                          {
+                            value: '',
+                            label: selectedProjectId ? 'No members in this project' : 'Select a project first',
+                          },
+                        ]
+                  }
+                  disabled={!assigneeOptions.length || !selectedProjectId}
+                  {...register('assignedToUserId')}
+                />
+                <Select
+                  label="Priority"
+                  requiredField
+                  error={errors.priority?.message}
+                  options={taskPriorityValues.map((value) => ({ value, label: value }))}
+                  {...register('priority')}
+                />
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -234,11 +288,11 @@ export function TaskFormModal({
 
             <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50/70 p-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <UserRound size={16} className="text-emerald-600" />
-                Form Rules
+                <Users size={16} className="text-emerald-600" />
+                Assignment Rules
               </div>
               <ul className="mt-3 space-y-2 text-sm text-slate-600">
-                <li>Tasks always need an assignee so accountability stays visible.</li>
+                <li>Only members of the selected project appear as assignees.</li>
                 <li>Status can be changed later from the board without reopening the form.</li>
                 <li>Move blocked work quickly to avoid stale due dates in the dashboard.</li>
               </ul>
@@ -246,7 +300,11 @@ export function TaskFormModal({
           </div>
         </div>
 
-        {formError ? <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{formError}</p> : null}
+        {formError ? (
+          <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {formError}
+          </p>
+        ) : null}
       </form>
     </Modal>
   )

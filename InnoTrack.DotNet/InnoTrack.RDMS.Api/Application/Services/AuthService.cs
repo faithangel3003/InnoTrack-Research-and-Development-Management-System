@@ -475,16 +475,12 @@ public class AuthService(
 
         if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
         {
-            await RegisterFailureAsync(null, email, ipAddress, userAgent, "Invalid credentials", cancellationToken);
-            logger.LogWarning("Invalid login attempt for email {Email}", email);
-            throw new UnauthorizedAccessException("Invalid credentials");
+            await RecordFailureAndThrowAsync(null, email, ipAddress, userAgent, "Invalid credentials", cancellationToken);
         }
 
-        if (!passwordHashService.Verify(password, user.PasswordHash))
+        if (!passwordHashService.Verify(password, user!.PasswordHash!))
         {
-            await RegisterFailureAsync(user.Id, email, ipAddress, userAgent, "Invalid credentials", cancellationToken);
-            logger.LogWarning("Invalid password attempt for user {UserId}", user.Id);
-            throw new UnauthorizedAccessException("Invalid credentials");
+            await RecordFailureAndThrowAsync(user.Id, email, ipAddress, userAgent, "Invalid credentials", cancellationToken);
         }
 
         if (!user.IsActive)
@@ -493,6 +489,36 @@ public class AuthService(
         }
 
         return new ValidatedLoginContext(email, user);
+    }
+
+    private async Task RecordFailureAndThrowAsync(Guid? userId, string email, string? ipAddress, string? userAgent, string reason, CancellationToken cancellationToken)
+    {
+        await bruteForceProtectionService.RecordFailedAttemptAsync(email, ipAddress, cancellationToken);
+        await authLogService.LogAsync(userId, email, AuthenticationEventType.LoginFailed, ipAddress, userAgent, reason, cancellationToken);
+
+        var attemptCount = bruteForceProtectionService.GetCurrentAttemptCount(email);
+        var lockExpiry = await bruteForceProtectionService.GetLockoutExpiryAsync(email, ipAddress, cancellationToken);
+
+        if (lockExpiry.HasValue && lockExpiry.Value > DateTime.UtcNow)
+        {
+            await authLogService.LogAsync(userId, email, AuthenticationEventType.AccountLocked, ipAddress, userAgent, $"Locked until {lockExpiry.Value:u}", cancellationToken);
+            await securityEventService.LogEventAsync(
+                SecurityEventType.BruteForceDetected,
+                SecuritySeverity.High,
+                "/api/auth/login",
+                HttpMethods.Post,
+                ipAddress,
+                userAgent,
+                $"Brute force lockout triggered for {email} until {lockExpiry.Value:u}.",
+                userId,
+                cancellationToken);
+
+            var remaining = (int)Math.Ceiling((lockExpiry.Value - DateTime.UtcNow).TotalSeconds);
+            throw new UnauthorizedAccessException($"LOCKED:{remaining}");
+        }
+
+        logger.LogWarning("Invalid login attempt for email {Email} (attempt {Count})", email, attemptCount);
+        throw new UnauthorizedAccessException($"ATTEMPT:{attemptCount}:Invalid credentials");
     }
 
     private async Task CompleteRecoveredPasswordResetAsync(AppUser user, string newPassword, string? ipAddress, CancellationToken cancellationToken)
@@ -558,32 +584,8 @@ public class AuthService(
         if (accountLocked || ipLocked)
         {
             var expiry = await bruteForceProtectionService.GetLockoutExpiryAsync(email, ipAddress, cancellationToken);
-            var prefix = accountLocked ? "Account temporarily locked." : "Too many attempts from this IP.";
-            throw new UnauthorizedAccessException(expiry.HasValue
-                ? $"{prefix} Lockout expires at {expiry.Value:u}."
-                : $"{prefix} Try again later.");
-        }
-    }
-
-    private async Task RegisterFailureAsync(Guid? userId, string email, string? ipAddress, string? userAgent, string reason, CancellationToken cancellationToken)
-    {
-        await bruteForceProtectionService.RecordFailedAttemptAsync(email, ipAddress, cancellationToken);
-        await authLogService.LogAsync(userId, email, AuthenticationEventType.LoginFailed, ipAddress, userAgent, reason, cancellationToken);
-
-        var lockExpiry = await bruteForceProtectionService.GetLockoutExpiryAsync(email, ipAddress, cancellationToken);
-        if (lockExpiry.HasValue && lockExpiry.Value > DateTime.UtcNow)
-        {
-            await authLogService.LogAsync(userId, email, AuthenticationEventType.AccountLocked, ipAddress, userAgent, $"Locked until {lockExpiry.Value:u}", cancellationToken);
-            await securityEventService.LogEventAsync(
-                SecurityEventType.BruteForceDetected,
-                SecuritySeverity.High,
-                "/api/auth/login",
-                HttpMethods.Post,
-                ipAddress,
-                userAgent,
-                $"Brute force lockout triggered for {email} until {lockExpiry.Value:u}.",
-                userId,
-                cancellationToken);
+            var remaining = expiry.HasValue ? (int)Math.Ceiling((expiry.Value - DateTime.UtcNow).TotalSeconds) : 60;
+            throw new UnauthorizedAccessException($"LOCKED:{Math.Max(0, remaining)}");
         }
     }
 

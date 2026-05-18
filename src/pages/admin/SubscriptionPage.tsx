@@ -163,6 +163,7 @@ export function SubscriptionPage() {
   const seatLimit = planLimits[plan].seats
   const projectLimit = planLimits[plan].projects
   const activeProjects = useMemo(() => countActiveProjects(projects), [projects])
+  const totalProjects = projects.length
   const nextRenewal = subscription?.endDate ? format(new Date(subscription.endDate), 'MMMM d, yyyy') : '-'
   const startDate = subscription?.startDate ? format(new Date(subscription.startDate), 'MMMM d, yyyy') : '-'
   const daysRemaining = subscription?.endDate
@@ -192,7 +193,7 @@ export function SubscriptionPage() {
       status: subscription?.status || 'Active',
       renewalDate: nextRenewal,
       users: activeUsers,
-      projects: activeProjects,
+      projects: totalProjects,
       autoRenew,
     }
 
@@ -306,7 +307,7 @@ export function SubscriptionPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         <UsageCard icon={<Users size={18} />} label="Users" used={activeUsers} limit={seatLimit} helper="Active users in your company" />
-        <UsageCard icon={<FolderKanban size={18} />} label="Projects" used={activeProjects} limit={projectLimit} helper="Active projects in your company" />
+        <UsageCard icon={<FolderKanban size={18} />} label="Projects" used={totalProjects} limit={projectLimit} helper="Projects in your company" />
       </div>
 
       <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-[0_14px_32px_rgba(15,23,42,0.04)]">

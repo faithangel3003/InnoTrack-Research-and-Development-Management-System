@@ -8,6 +8,7 @@ import { useOrganizations } from '../../hooks/useOrganizations'
 import { useTeams } from '../../hooks/useTeams'
 import { getErrorMessage } from '../../utils/apiError'
 import { normalizeRole } from '../../utils/roleHelpers'
+import { decodeHtmlEntities } from '../../utils/text'
 import { Avatar } from '../ui/Avatar'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
@@ -99,8 +100,8 @@ export function TeamManagementSection() {
       return
     }
 
-    setTeamName(editingTeam?.name ?? '')
-    setTeamDescription(editingTeam?.description ?? '')
+    setTeamName(decodeHtmlEntities(editingTeam?.name))
+    setTeamDescription(decodeHtmlEntities(editingTeam?.description))
     setSelectedMemberIds(editingTeam ? organizationUsers.filter((entry) => entry.teamId === editingTeam.id).map((entry) => entry.id) : [])
     setMemberSearch('')
     setFormError('')
@@ -121,7 +122,11 @@ export function TeamManagementSection() {
       return teams
     }
 
-    return teams.filter((team) => `${team.name} ${team.description ?? ''}`.toLowerCase().includes(query))
+    return teams.filter((team) => {
+      const name = decodeHtmlEntities(team.name)
+      const description = decodeHtmlEntities(team.description ?? '')
+      return `${name} ${description}`.toLowerCase().includes(query)
+    })
   }, [search, teams])
 
   const totalTeamPages = useMemo(() => Math.max(1, Math.ceil(filteredTeams.length / teamPageSize)), [filteredTeams.length])
@@ -146,7 +151,8 @@ export function TeamManagementSection() {
           return true
         }
 
-        const searchable = `${getUserDisplayName(entry)} ${entry.email} ${entry.teamName ?? ''}`.toLowerCase()
+        const teamLabel = decodeHtmlEntities(entry.teamName ?? '')
+        const searchable = `${getUserDisplayName(entry)} ${entry.email} ${teamLabel}`.toLowerCase()
         return searchable.includes(query)
       })
       .sort((left, right) => {
@@ -167,6 +173,17 @@ export function TeamManagementSection() {
 
     return organizationUsers.filter((entry) => entry.teamId === viewTeam.id)
   }, [organizationUsers, viewTeam])
+
+  const memberCounts = useMemo(() => {
+    return organizationUsers.reduce<Record<string, number>>((accumulator, entry) => {
+      if (!entry.teamId) {
+        return accumulator
+      }
+
+      accumulator[entry.teamId] = (accumulator[entry.teamId] || 0) + 1
+      return accumulator
+    }, {})
+  }, [organizationUsers])
 
   function openCreateTeam() {
     setFormMode('create')
@@ -223,7 +240,7 @@ export function TeamManagementSection() {
           }
         }
 
-        await Promise.all([refreshTeams(), loadOrganizationUsers()])
+        await loadOrganizationUsers()
         toast.success('Team updated successfully')
       }
 
@@ -345,16 +362,16 @@ export function TeamManagementSection() {
                                   <Building2 className="h-5 w-5" />
                                 </div>
                                 <div>
-                                  <p className="font-semibold text-slate-900">{team.name}</p>
+                                  <p className="font-semibold text-slate-900">{decodeHtmlEntities(team.name)}</p>
                                   <p className="text-xs text-slate-400">{new Date(team.createdAtUtc).toLocaleDateString('en-US')}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-4 py-4 text-sm text-slate-600">{team.description || 'No description provided'}</td>
+                            <td className="px-4 py-4 text-sm text-slate-600">{decodeHtmlEntities(team.description) || 'No description provided'}</td>
                             <td className="px-4 py-4">
                               <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
                                 <Users className="h-4 w-4" />
-                                {team.memberCount}
+                                {memberCounts[team.id] ?? team.memberCount}
                               </span>
                             </td>
                             <td className="px-4 py-4 text-sm text-slate-500">{new Date(team.updatedAtUtc).toLocaleDateString('en-US')}</td>
@@ -472,7 +489,7 @@ export function TeamManagementSection() {
                     const currentTeamLabel = member.teamId === editingTeam?.id
                       ? 'Currently on this team'
                       : member.teamName
-                        ? `Currently on ${member.teamName}`
+                        ? `Currently on ${decodeHtmlEntities(member.teamName)}`
                         : 'Not assigned to a team'
 
                     return (
@@ -545,18 +562,18 @@ export function TeamManagementSection() {
                 <Building2 className="h-6 w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-lg font-semibold text-slate-900">{viewTeam.name}</p>
-                <p className="text-sm text-slate-500">{viewTeam.description || 'No description provided'}</p>
+                <p className="text-lg font-semibold text-slate-900">{decodeHtmlEntities(viewTeam.name)}</p>
+                <p className="text-sm text-slate-500">{decodeHtmlEntities(viewTeam.description) || 'No description provided'}</p>
               </div>
               <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700 shadow-sm">
                 <Users className="h-4 w-4" />
-                {viewTeam.memberCount} members
+                {memberCounts[viewTeam.id] ?? viewTeam.memberCount} members
               </span>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <TeamInfoField label="Description" value={viewTeam.description || 'No description provided'} />
-              <TeamInfoField label="Members" value={String(viewTeam.memberCount)} />
+              <TeamInfoField label="Description" value={decodeHtmlEntities(viewTeam.description) || 'No description provided'} />
+              <TeamInfoField label="Members" value={String(memberCounts[viewTeam.id] ?? viewTeam.memberCount)} />
               <TeamInfoField label="Created" value={formatTeamDate(viewTeam.createdAtUtc)} />
               <TeamInfoField label="Updated" value={formatTeamDate(viewTeam.updatedAtUtc)} />
             </div>

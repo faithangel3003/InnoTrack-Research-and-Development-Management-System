@@ -7,4 +7,5 @@ public interface IBruteForceProtectionService
     Task<bool> IsAccountLockedAsync(string email, CancellationToken cancellationToken = default);
     Task ClearAttemptsAsync(string email, string? ipAddress, CancellationToken cancellationToken = default);
     Task<DateTime?> GetLockoutExpiryAsync(string email, string? ipAddress, CancellationToken cancellationToken = default);
+    int GetCurrentAttemptCount(string email);
 }

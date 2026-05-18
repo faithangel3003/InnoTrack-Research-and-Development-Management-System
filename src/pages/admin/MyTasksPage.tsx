@@ -11,6 +11,7 @@ import { Select } from '../../components/ui/Select'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../context/ToastContext'
 import { classNames } from '../../utils/classNames'
+import { truncateWords } from '../../utils/text'
 import { getErrorMessage } from '../../utils/apiError'
 import { formatDate } from '../../utils/formatDate'
 import { projectPriorityClasses } from '../../utils/projectMetrics'
@@ -238,7 +239,7 @@ export function MyTasksPage() {
                           </span>
                         </div>
 
-                        {task.description ? <p className="mt-3 text-sm text-slate-600">{task.description}</p> : null}
+                        {task.description ? <p className="mt-3 text-sm text-slate-600">{truncateWords(task.description)}</p> : null}
 
                         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                           <div className="text-sm text-slate-500">

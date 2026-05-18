@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as projectApi from '../../api/projectApi'
+import * as userApi from '../../api/userApi'
 import type { User } from '../../api/userApi'
 import { TeamManagementSection } from '../../components/users/TeamManagementSection'
 import { UserFilters } from '../../components/users/UserFilters'
@@ -20,6 +21,7 @@ import { useAuth } from '../../hooks/useAuth'
 import { useRoles } from '../../hooks/useRoles'
 import { useUsers } from '../../hooks/useUsers'
 import { normalizeRole } from '../../utils/roleHelpers'
+import { decodeHtmlEntities } from '../../utils/text'
 
 export function UsersPage() {
   const navigate = useNavigate()
@@ -36,6 +38,8 @@ export function UsersPage() {
   const [projects, setProjects] = useState<projectApi.Project[]>([])
   const [projectMembersByProjectId, setProjectMembersByProjectId] = useState<Record<string, projectApi.ProjectMember[]>>({})
   const [projectError, setProjectError] = useState('')
+  const [statsUsers, setStatsUsers] = useState<User[]>([])
+  const [statsError, setStatsError] = useState('')
   const canManageTeams = ['SuperAdmin', 'SystemAdmin'].includes(normalizeRole(user?.role))
 
   const assignableRoles = useMemo(
@@ -89,15 +93,53 @@ export function UsersPage() {
     }
   }, [])
 
-  const stats = useMemo(() => {
-    const active = visibleUsers.filter((entry) => entry.isActive ?? entry.status === 'active').length
-    return {
-      totalUsers: visibleUsers.length,
-      activeUsers: active,
-      projectManagers: visibleUsers.filter((entry) => normalizeRole(entry.roleName) === 'ProjectManager').length,
-      teamMembers: visibleUsers.filter((entry) => normalizeRole(entry.roleName) === 'TeamMember').length,
+  useEffect(() => {
+    let active = true
+
+    async function loadUserStats() {
+      try {
+        const response = await userApi.getAllUsers({
+          page: 1,
+          pageSize: 5000,
+          search: '',
+          roleId: '',
+          isActive: '',
+        })
+
+        if (!active) {
+          return
+        }
+
+        setStatsUsers(response.data)
+        setStatsError('')
+      } catch (statsLoadError) {
+        if (!active) {
+          return
+        }
+
+        setStatsUsers([])
+        setStatsError(statsLoadError instanceof Error ? statsLoadError.message : 'Failed to load user totals')
+      }
     }
-  }, [visibleUsers])
+
+    void loadUserStats()
+
+    return () => {
+      active = false
+    }
+  }, [total])
+
+  const stats = useMemo(() => {
+    const source = statsUsers.length > 0 ? statsUsers : visibleUsers
+    const scoped = source.filter((entry) => !['SuperAdmin', 'SystemAdmin'].includes(normalizeRole(entry.roleName)))
+    const active = scoped.filter((entry) => entry.isActive ?? entry.status === 'active').length
+    return {
+      totalUsers: scoped.length,
+      activeUsers: active,
+      projectManagers: scoped.filter((entry) => normalizeRole(entry.roleName) === 'ProjectManager').length,
+      teamMembers: scoped.filter((entry) => normalizeRole(entry.roleName) === 'TeamMember').length,
+    }
+  }, [statsUsers, visibleUsers])
 
   const usersWithMetrics = useMemo(() => {
     return visibleUsers.map((entry) => {
@@ -174,6 +216,12 @@ export function UsersPage() {
       {projectError ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
           {projectError}
+        </div>
+      ) : null}
+
+      {statsError ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          {statsError}
         </div>
       ) : null}
 
@@ -288,7 +336,7 @@ export function UsersPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <UserInfoField label="Status" value={(viewUser.isActive ?? viewUser.status === 'active') ? 'Active' : 'Inactive'} />
-              <UserInfoField label="Team" value={viewUser.teamName || 'No team assigned'} />
+              <UserInfoField label="Team" value={decodeHtmlEntities(viewUser.teamName) || 'No team assigned'} />
               <UserInfoField label="Organization" value={viewUser.organizationName || viewUser.organization || 'Company tenant'} />
               <UserInfoField label="Projects" value={String(viewUser.projectCount ?? 0)} />
               <UserInfoField label="Tasks" value={String(viewUser.taskCount ?? 0)} />

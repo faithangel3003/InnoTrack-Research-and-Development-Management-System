@@ -33,7 +33,7 @@ const items: NavItem[] = [
     path: '/admin/projects',
     pathByRole: { ProjectManager: '/projects' },
     icon: FolderKanban,
-    roles: ['SystemAdmin', 'ProjectManager'],
+    roles: ['SystemAdmin', 'ProjectManager', 'TeamMember'],
   },
   {
     section: 'main',

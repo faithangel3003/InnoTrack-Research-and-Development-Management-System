@@ -4,6 +4,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxi
 import { useNavigate } from 'react-router-dom'
 import * as auditLogApi from '../../api/auditLogApi'
 import * as projectApi from '../../api/projectApi'
+import * as taskApi from '../../api/taskApi'
 import * as userApi from '../../api/userApi'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Avatar } from '../../components/ui/Avatar'
@@ -20,6 +21,7 @@ type DashboardState = {
   users: userApi.User[]
   totalUsers: number
   projects: projectApi.Project[]
+  tasks: taskApi.ProjectTask[]
   logs: auditLogApi.AuditLog[]
 }
 
@@ -31,7 +33,7 @@ type MetricCardProps = {
   iconClassName: string
 }
 
-const taskPalette = ['#94a3b8', '#f59e0b', '#10b981', '#ef4444']
+const taskPalette = ['#94a3b8', '#f59e0b', '#a78bfa', '#10b981', '#ef4444']
 
 function isActiveUser(user: userApi.User) {
   return user.isActive ?? user.status === 'active'
@@ -95,6 +97,7 @@ export function DashboardPage() {
     users: [],
     totalUsers: 0,
     projects: [],
+    tasks: [],
     logs: [],
   })
 
@@ -118,12 +121,27 @@ export function DashboardPage() {
           return
         }
 
+        // Fetch all tasks across all projects for accurate task status breakdown
+        const taskResults = await Promise.all(
+          projectsResponse.map((p) =>
+            projectApi.getProjectMembers(p.id)
+              .then(() => taskApi.getProjectTasks(p.id))
+              .catch(() => [] as taskApi.ProjectTask[])
+          )
+        )
+        const allTasks = taskResults.flat()
+
+        if (cancelled) {
+          return
+        }
+
         setState({
           loading: false,
           error: '',
           users: usersResponse.data,
           totalUsers: usersResponse.total,
           projects: projectsResponse,
+          tasks: allTasks,
           logs: logsResponse.data,
         })
       } catch (error) {
@@ -149,11 +167,24 @@ export function DashboardPage() {
           return
         }
 
+        // Fetch real tasks for each project so task status breakdown is accurate
+        const taskResults = await Promise.all(
+          projectsResponse.map((p) =>
+            taskApi.getProjectTasks(p.id).catch(() => [] as taskApi.ProjectTask[])
+          )
+        )
+        const allTasks = taskResults.flat()
+
+        if (cancelled) {
+          return
+        }
+
         setState((current) => ({
           ...current,
           loading: false,
           error: '',
           projects: projectsResponse,
+          tasks: allTasks,
           users: [],
           totalUsers: 0,
           logs: [],
@@ -186,8 +217,17 @@ export function DashboardPage() {
 
   const activeUsers = useMemo(() => state.users.filter(isActiveUser).length, [state.users])
   const activeProjects = useMemo(() => state.projects.filter((project) => project.status.toLowerCase() === 'active').length, [state.projects])
-  const totalTasks = useMemo(() => state.projects.reduce((sum, project) => sum + project.totalTasks, 0), [state.projects])
-  const completedTasks = useMemo(() => state.projects.reduce((sum, project) => sum + project.completedTasks, 0), [state.projects])
+  // Use real fetched tasks when available, fall back to project-level aggregates
+  const totalTasks = useMemo(() =>
+    state.tasks.length > 0
+      ? state.tasks.length
+      : state.projects.reduce((sum, project) => sum + project.totalTasks, 0),
+    [state.tasks, state.projects])
+  const completedTasks = useMemo(() =>
+    state.tasks.length > 0
+      ? state.tasks.filter((t) => t.status === 'Done').length
+      : state.projects.reduce((sum, project) => sum + project.completedTasks, 0),
+    [state.tasks, state.projects])
   const completionRate = useMemo(() => toPercent(completedTasks, totalTasks), [completedTasks, totalTasks])
   const today = useMemo(() => startOfDay(new Date()), [])
   const todayActivity = useMemo(() => state.logs.filter((log) => new Date(log.timestampUtc) >= today).length, [state.logs, today])
@@ -212,18 +252,26 @@ export function DashboardPage() {
   }, [state.projects])
 
   const taskOverview = useMemo(() => {
-    const completed = completedTasks
-    const todo = Math.max(0, totalTasks - completed)
-    const inProgress = 0
-    const overdue = 0
+    // Use real task status counts from fetched tasks when available
+    const tasks = state.tasks
+    const todo = tasks.filter((t) => t.status === 'Todo').length
+    const inProgress = tasks.filter((t) => t.status === 'InProgress').length
+    const underReview = tasks.filter((t) => t.status === 'UnderReview').length
+    const done = tasks.filter((t) => t.status === 'Done').length
+    const blocked = tasks.filter((t) => t.status === 'Blocked').length
+
+    // Fall back to project-level counts when tasks haven't been fetched
+    const fallbackDone = tasks.length === 0 ? completedTasks : done
+    const fallbackTodo = tasks.length === 0 ? Math.max(0, totalTasks - completedTasks) : todo
 
     return [
-      { name: 'To Do', value: todo, color: taskPalette[0] },
-      { name: 'In Progress', value: inProgress, color: taskPalette[1] },
-      { name: 'Completed', value: completed, color: taskPalette[2] },
-      { name: 'Overdue', value: overdue, color: taskPalette[3] },
+      { name: 'To Do', value: tasks.length > 0 ? todo : fallbackTodo, color: taskPalette[0] },
+      { name: 'In Progress', value: tasks.length > 0 ? inProgress : 0, color: taskPalette[1] },
+      { name: 'Under Review', value: tasks.length > 0 ? underReview : 0, color: '#a78bfa' },
+      { name: 'Completed', value: tasks.length > 0 ? done : fallbackDone, color: taskPalette[2] },
+      { name: 'Blocked', value: tasks.length > 0 ? blocked : 0, color: taskPalette[3] },
     ]
-  }, [completedTasks, totalTasks])
+  }, [state.tasks, completedTasks, totalTasks])
 
   const recentProjects = useMemo(
     () => [...state.projects]
