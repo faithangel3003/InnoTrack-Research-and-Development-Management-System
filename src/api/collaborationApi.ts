@@ -119,6 +119,7 @@ export type CollaborationAnnouncement = {
   priority: AnnouncementPriority
   projectId?: string | null
   projectTitle?: string | null
+  postedByUserId: string
   postedByName: string
   sentAt: string
   readCount: number
@@ -206,6 +207,7 @@ function mapAnnouncement(announcement: ApiAnnouncement): CollaborationAnnounceme
     priority: announcement.priority,
     projectId: announcement.projectId || undefined,
     projectTitle: announcement.projectTitle || undefined,
+    postedByUserId: announcement.postedByUserId,
     postedByName: announcement.postedByName,
     sentAt: announcement.publishedAt || announcement.createdAt,
     readCount: announcement.readCount,

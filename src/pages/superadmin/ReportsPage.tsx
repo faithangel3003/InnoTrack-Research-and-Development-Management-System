@@ -108,7 +108,6 @@ export function ReportsPage() {
 
       <section data-print-hide="true" className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Reports</h2>
           <p className="mt-1 text-sm text-slate-400">Platform analytics and downloadable reports</p>
         </div>
 

@@ -162,7 +162,6 @@ export function CompaniesPage() {
 
       <section className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Companies</h2>
           <p className="mt-1 text-sm text-slate-400">Manage all registered organizations</p>
         </div>
         <Button type="button" onClick={() => void handleOpenCreate()} leftIcon={<Plus className="h-4 w-4" />}>

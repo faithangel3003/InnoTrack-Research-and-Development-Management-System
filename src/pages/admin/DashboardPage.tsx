@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Activity, ArrowRight, ClipboardList, FolderKanban, Users } from 'lucide-react'
+import { Activity, ArrowRight, CheckCircle2, ClipboardList, FolderKanban, Users } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, Tooltip, XAxis, YAxis } from 'recharts'
 import { useNavigate } from 'react-router-dom'
 import * as auditLogApi from '../../api/auditLogApi'
@@ -99,16 +99,12 @@ export function DashboardPage() {
   })
 
   const isSystemAdmin = user?.role === 'SystemAdmin'
+  const isProjectManager = user?.role === 'ProjectManager'
 
   useEffect(() => {
-    if (!isSystemAdmin) {
-      setState((current) => ({ ...current, loading: false }))
-      return
-    }
-
     let cancelled = false
 
-    async function loadDashboard() {
+    async function loadSystemAdminDashboard() {
       setState((current) => ({ ...current, loading: true, error: '' }))
 
       try {
@@ -143,17 +139,56 @@ export function DashboardPage() {
       }
     }
 
-    void loadDashboard()
+    async function loadProjectManagerDashboard() {
+      setState((current) => ({ ...current, loading: true, error: '' }))
+
+      try {
+        const projectsResponse = await projectApi.getAllProjects()
+
+        if (cancelled) {
+          return
+        }
+
+        setState((current) => ({
+          ...current,
+          loading: false,
+          error: '',
+          projects: projectsResponse,
+          users: [],
+          totalUsers: 0,
+          logs: [],
+        }))
+      } catch (error) {
+        if (cancelled) {
+          return
+        }
+
+        setState((current) => ({
+          ...current,
+          loading: false,
+          error: error instanceof Error ? error.message : 'Failed to load project manager dashboard data',
+        }))
+      }
+    }
+
+    if (isSystemAdmin) {
+      void loadSystemAdminDashboard()
+    } else if (isProjectManager) {
+      void loadProjectManagerDashboard()
+    } else {
+      setState((current) => ({ ...current, loading: false }))
+    }
 
     return () => {
       cancelled = true
     }
-  }, [isSystemAdmin])
+  }, [isProjectManager, isSystemAdmin])
 
   const activeUsers = useMemo(() => state.users.filter(isActiveUser).length, [state.users])
   const activeProjects = useMemo(() => state.projects.filter((project) => project.status.toLowerCase() === 'active').length, [state.projects])
   const totalTasks = useMemo(() => state.projects.reduce((sum, project) => sum + project.totalTasks, 0), [state.projects])
   const completedTasks = useMemo(() => state.projects.reduce((sum, project) => sum + project.completedTasks, 0), [state.projects])
+  const completionRate = useMemo(() => toPercent(completedTasks, totalTasks), [completedTasks, totalTasks])
   const today = useMemo(() => startOfDay(new Date()), [])
   const todayActivity = useMemo(() => state.logs.filter((log) => new Date(log.timestampUtc) >= today).length, [state.logs, today])
 
@@ -190,9 +225,224 @@ export function DashboardPage() {
     ]
   }, [completedTasks, totalTasks])
 
-  const recentProjects = useMemo(() => state.projects.slice(0, 4), [state.projects])
+  const recentProjects = useMemo(
+    () => [...state.projects]
+      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+      .slice(0, 4),
+    [state.projects],
+  )
+  const upcomingDeadlines = useMemo(
+    () => [...state.projects]
+      .filter((project) => new Date(project.endDate).getTime() >= today.getTime())
+      .sort((left, right) => new Date(left.endDate).getTime() - new Date(right.endDate).getTime())
+      .slice(0, 4),
+    [state.projects, today],
+  )
   const teamMembers = useMemo(() => state.users.slice(0, 5), [state.users])
   const displayName = user?.firstName || user?.email || 'Administrator'
+
+  if (isProjectManager) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Project Manager Dashboard"
+          subtitle={`Welcome back, ${displayName}. Track delivery across your assigned projects.`}
+          actions={(
+            <>
+              <Button variant="secondary" onClick={() => navigate('/projects')}>
+                Projects
+              </Button>
+              <Button variant="secondary" onClick={() => navigate('/admin/collaboration')}>
+                Collaboration
+              </Button>
+              <Button onClick={() => navigate('/admin/research-documentation')} rightIcon={<ArrowRight size={16} />}>
+                Research Docs
+              </Button>
+            </>
+          )}
+        />
+
+        {state.error ? (
+          <Card title="Dashboard unavailable" subtitle={state.error}>
+            <Button onClick={() => window.location.reload()}>Reload dashboard</Button>
+          </Card>
+        ) : null}
+
+        <section className="grid gap-4 xl:grid-cols-4">
+          {state.loading ? Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-36 animate-pulse rounded-2xl border border-slate-200 bg-white shadow-sm" />
+          )) : (
+            <>
+              <MetricCard
+                label="Total Projects"
+                value={state.projects.length.toLocaleString()}
+                helper="Projects you own or are assigned"
+                icon={<FolderKanban size={22} />}
+                iconClassName="bg-sky-100 text-sky-600"
+              />
+              <MetricCard
+                label="Active Projects"
+                value={activeProjects.toLocaleString()}
+                helper="Currently in progress"
+                icon={<Activity size={22} />}
+                iconClassName="bg-amber-100 text-amber-600"
+              />
+              <MetricCard
+                label="Total Tasks"
+                value={totalTasks.toLocaleString()}
+                helper={`${completedTasks} tasks completed`}
+                icon={<ClipboardList size={22} />}
+                iconClassName="bg-violet-100 text-violet-600"
+              />
+              <MetricCard
+                label="Completion Rate"
+                value={`${completionRate}%`}
+                helper="Across assigned projects"
+                icon={<CheckCircle2 size={22} />}
+                iconClassName="bg-emerald-100 text-emerald-600"
+              />
+            </>
+          )}
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card
+            title="Project Progress"
+            subtitle="Track completion rates across active research initiatives."
+          >
+            <div className="h-80">
+              {state.loading ? (
+                <div className="h-full animate-pulse rounded-2xl bg-slate-100" />
+              ) : projectProgress.length > 0 ? (
+                <ChartContainer className="h-full w-full">
+                  {({ width, height }) => (
+                    <BarChart
+                      width={width}
+                      height={height}
+                      data={projectProgress}
+                      layout="vertical"
+                      margin={{ top: 8, right: 8, bottom: 8, left: 8 }}
+                    >
+                      <CartesianGrid horizontal={false} stroke="#e2e8f0" />
+                      <XAxis type="number" domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} unit="%" />
+                      <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12 }} />
+                      <Tooltip cursor={{ fill: '#f8fafc' }} formatter={(value) => [`${Number(value || 0)}%`, 'Completion']} />
+                      <Bar dataKey="completion" radius={[10, 10, 10, 10]}>
+                        {projectProgress.map((entry) => <Cell key={entry.id} fill={entry.completion >= 70 ? '#10b981' : '#3b82f6'} />)}
+                      </Bar>
+                    </BarChart>
+                  )}
+                </ChartContainer>
+              ) : (
+                <EmptyChartState message="Project progress will appear once research initiatives are available in your workspace." />
+              )}
+            </div>
+          </Card>
+
+          <Card title="Task Overview" subtitle="Current task distribution across your projects.">
+            <div className="space-y-5">
+              <div className="relative mx-auto h-72 max-w-sm">
+                {state.loading ? (
+                  <div className="h-full animate-pulse rounded-2xl bg-slate-100" />
+                ) : taskOverview.some((item) => item.value > 0) ? (
+                  <>
+                    <ChartContainer className="h-full w-full">
+                      {({ width, height }) => (
+                        <PieChart width={width} height={height}>
+                          <Pie
+                            data={taskOverview}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={70}
+                            outerRadius={110}
+                            paddingAngle={3}
+                          >
+                            {taskOverview.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip formatter={(value) => [`${Number(value || 0)} tasks`, 'Tasks']} />
+                        </PieChart>
+                      )}
+                    </ChartContainer>
+                    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                      <span className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Tasks</span>
+                      <span className="mt-2 text-4xl font-bold text-slate-900">{totalTasks}</span>
+                    </div>
+                  </>
+                ) : (
+                  <EmptyChartState message="Task distribution will appear once project tasks are available." />
+                )}
+              </div>
+
+              <div className="grid gap-3">
+                {taskOverview.map((item) => (
+                  <div key={item.name} className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <span className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
+                      <span className="text-sm font-medium text-slate-700">{item.name}</span>
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900">{item.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+          <Card title="Recent Projects" subtitle="Latest project updates and completion status.">
+            <div className="space-y-3">
+              {state.loading ? Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-20 animate-pulse rounded-2xl bg-slate-100" />
+              )) : recentProjects.length > 0 ? recentProjects.map((project) => (
+                <div key={project.id} className="rounded-2xl border border-slate-200 px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{project.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{project.totalTasks} tasks • {project.memberCount} team members</p>
+                    </div>
+                    <Badge variant={projectStatusVariant(project.status)} text={project.status} />
+                  </div>
+                  <div className="mt-3">
+                    <div className="h-2 rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full bg-sky-500" style={{ width: `${toPercent(project.completedTasks, project.totalTasks)}%` }} />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                      <span>{toPercent(project.completedTasks, project.totalTasks)}% complete</span>
+                      <span>Updated {relativeTime(project.updatedAt)}</span>
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                  Project updates will appear here once your workspace has active delivery work.
+                </div>
+              )}
+            </div>
+          </Card>
+
+          <Card title="Upcoming Deadlines" subtitle="Projects closest to their planned end dates.">
+            <div className="space-y-3">
+              {state.loading ? Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="h-16 animate-pulse rounded-2xl bg-slate-100" />
+              )) : upcomingDeadlines.length > 0 ? upcomingDeadlines.map((project) => (
+                <div key={project.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{project.title}</p>
+                    <p className="mt-1 text-xs text-slate-500">Ends {formatDate(project.endDate)}</p>
+                  </div>
+                  <Badge variant={projectStatusVariant(project.status)} text={project.status} />
+                </div>
+              )) : (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm text-slate-500">
+                  No upcoming project deadlines are scheduled yet.
+                </div>
+              )}
+            </div>
+          </Card>
+        </section>
+      </div>
+    )
+  }
 
   if (!isSystemAdmin) {
     return (

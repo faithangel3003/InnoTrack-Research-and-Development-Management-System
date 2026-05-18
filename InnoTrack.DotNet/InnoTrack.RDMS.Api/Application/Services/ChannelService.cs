@@ -341,20 +341,49 @@ public class ChannelService(
     private async Task EnsureDefaultChannelsAsync(Guid actorUserId, Guid organizationId, CancellationToken cancellationToken)
     {
         var existingChannels = await channelRepository.GetAllAsync(organizationId, true, cancellationToken);
+        var existingOrganizationChannels = existingChannels
+            .Where(x => !x.ProjectId.HasValue)
+            .ToList();
         var existingOrganizationChannelNames = new HashSet<string>(
-            existingChannels.Where(x => !x.ProjectId.HasValue).Select(x => x.Name),
+            existingOrganizationChannels.Select(x => x.Name),
             StringComparer.OrdinalIgnoreCase);
-        var existingProjectIds = existingChannels.Where(x => x.ProjectId.HasValue).Select(x => x.ProjectId!.Value).ToHashSet();
+        var existingProjectChannels = existingChannels
+            .Where(x => x.ProjectId.HasValue)
+            .ToDictionary(x => x.ProjectId!.Value, x => x);
 
         var organizationUserIds = await dbContext.Users
             .Where(x => x.OrganizationId == organizationId && x.IsActive)
             .Select(x => x.Id)
             .ToListAsync(cancellationToken);
 
+        async Task EnsureActorMembershipAsync(Channel channel, ChannelMemberRole role)
+        {
+            if (channel.Members.Any(member => member.UserId == actorUserId))
+            {
+                return;
+            }
+
+            await channelRepository.AddMemberAsync(new ChannelMember
+            {
+                Id = Guid.NewGuid(),
+                ChannelId = channel.Id,
+                UserId = actorUserId,
+                Role = role,
+                JoinedAt = DateTime.UtcNow,
+                LastReadAt = DateTime.UtcNow,
+            }, cancellationToken);
+        }
+
         async Task EnsureOrganizationChannelAsync(string name, string description)
         {
             if (existingOrganizationChannelNames.Contains(name))
             {
+                var existingChannel = existingOrganizationChannels
+                    .FirstOrDefault(channel => string.Equals(channel.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (existingChannel is not null)
+                {
+                    await EnsureActorMembershipAsync(existingChannel, ChannelMemberRole.Member);
+                }
                 return;
             }
 
@@ -395,8 +424,17 @@ public class ChannelService(
 
         foreach (var project in projects)
         {
-            if (existingProjectIds.Contains(project.Id))
+            if (existingProjectChannels.TryGetValue(project.Id, out var existingChannel))
             {
+                var actorIsProjectMember = project.CreatedByUserId == actorUserId
+                    || project.Members.Any(member => member.UserId == actorUserId);
+
+                if (actorIsProjectMember)
+                {
+                    var role = project.CreatedByUserId == actorUserId ? ChannelMemberRole.Owner : ChannelMemberRole.Member;
+                    await EnsureActorMembershipAsync(existingChannel, role);
+                }
+
                 continue;
             }
 

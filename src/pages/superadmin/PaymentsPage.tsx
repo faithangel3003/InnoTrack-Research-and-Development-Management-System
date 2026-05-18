@@ -70,12 +70,7 @@ export function PaymentsPage() {
   return (
     <div className="space-y-6">
       <ErrorBanner message={message} onDismiss={() => setDismissedError(true)} />
-
-      <section>
-        <h2 className="text-2xl font-bold text-slate-900">Payments</h2>
-        <p className="mt-1 text-sm text-slate-400">Track all platform payment transactions</p>
-      </section>
-
+        
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => <KpiCard key={card.label} {...card} />)}
       </section>

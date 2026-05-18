@@ -102,7 +102,19 @@ export function CollaborationPage() {
   const [error, setError] = useState('')
   const [weeklyMessageCount, setWeeklyMessageCount] = useState(0)
 
-  const canManageAnnouncements = user?.role === 'SuperAdmin' || user?.role === 'SystemAdmin' || user?.role === 'ProjectManager'
+  const isOrgAdmin = user?.role === 'SuperAdmin' || user?.role === 'SystemAdmin'
+  const canManageAnnouncements = isOrgAdmin || user?.role === 'ProjectManager'
+  const canEditAnnouncement = (announcement: collaborationApi.CollaborationAnnouncement) => {
+    if (!user) {
+      return false
+    }
+
+    if (isOrgAdmin) {
+      return true
+    }
+
+    return announcement.postedByUserId === user.id
+  }
 
   const selectedChannel = useMemo(
     () => workspace?.channels.find((channel) => channel.id === selectedChannelId) || workspace?.channels[0] || null,
@@ -396,6 +408,11 @@ export function CollaborationPage() {
   }
 
   function handleEditAnnouncement(announcement: collaborationApi.CollaborationAnnouncement) {
+    if (!canEditAnnouncement(announcement)) {
+      toast.error('You do not have permission to edit this announcement')
+      return
+    }
+
     setAnnouncementForm({
       id: announcement.id,
       title: announcement.title,
@@ -499,7 +516,7 @@ export function CollaborationPage() {
           <EmptyState title="No collaboration workspace available" message="The collaboration center could not initialize for the current organization." />
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <div className="grid items-start gap-6 xl:grid-cols-[1.05fr_0.95fr]">
           <Card title="Channels & Live Thread" subtitle="Switch between organization-wide and project-specific threads, then continue the conversation in context.">
             <div className="grid gap-5 lg:grid-cols-[0.88fr_1.12fr]">
               <div className="space-y-3">
@@ -667,7 +684,7 @@ export function CollaborationPage() {
                         <div className="flex flex-col items-end gap-3 text-right text-xs text-slate-500">
                           <p>{formatDate(announcement.sentAt)}</p>
                           <p className="mt-1">Read confirmations: {announcement.readCount}</p>
-                          {canManageAnnouncements ? (
+                          {canEditAnnouncement(announcement) ? (
                             <div className="flex flex-wrap justify-end gap-2">
                               <Button variant="secondary" size="sm" leftIcon={<PencilLine size={14} />} onClick={() => handleEditAnnouncement(announcement)}>
                                 Edit
@@ -730,13 +747,6 @@ export function CollaborationPage() {
               )}
             </Card>
 
-            <Card title="Collaboration Rules" subtitle="Working guidance for keeping communication usable and auditable.">
-              <div className="space-y-3 text-sm text-slate-600">
-                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3">Use organization channels for notices that affect multiple projects or administrative services.</div>
-                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3">Keep project channels focused on milestones, blockers, version handoffs, and upcoming review dates.</div>
-                <div className="rounded-[1.5rem] border border-slate-200 bg-slate-50 px-4 py-3">Route critical policy and outage notices through announcements so they remain visible in the notification feed.</div>
-              </div>
-            </Card>
           </div>
         </div>
       )}

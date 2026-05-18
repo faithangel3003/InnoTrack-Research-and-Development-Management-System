@@ -30,6 +30,7 @@ public static class DotEnvBootstrapper
         SetIfPresent(overrides, envValues, "Smtp:FromEmail", "SMTP_FROM_EMAIL");
         SetIfPresent(overrides, envValues, "Smtp:FromName", "SMTP_FROM_NAME");
         SetIfPresent(overrides, envValues, "Smtp:EnableSsl", "SMTP_ENABLE_SSL");
+        SetIfPresent(overrides, envValues, "Smtp:TimeoutMs", "SMTP_TIMEOUT_MS");
         SetIfPresent(overrides, envValues, "AccountRecovery:OtpExpiryMinutes", "ACCOUNT_RECOVERY_OTP_EXPIRY_MINUTES");
         SetIfPresent(overrides, envValues, "Api:Port", "API_PORT");
         SetIfPresent(overrides, envValues, "Recaptcha:Enabled", "RECAPTCHA_ENABLED");

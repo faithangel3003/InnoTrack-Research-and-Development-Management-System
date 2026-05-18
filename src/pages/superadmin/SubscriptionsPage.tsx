@@ -65,10 +65,7 @@ export function SubscriptionsPage() {
     <div className="space-y-6">
       <ErrorBanner message={message} onDismiss={() => setDismissedError(true)} />
 
-      <section>
-        <h2 className="text-2xl font-bold text-slate-900">Subscriptions</h2>
-        <p className="mt-1 text-sm text-slate-400">Manage all organization subscriptions</p>
-      </section>
+   
 
       <section className="grid gap-6 md:grid-cols-3">
         {cards.map((card) => <KpiCard key={card.label} {...card} />)}

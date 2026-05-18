@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Mail;
+using System.Net.Sockets;
+using System.Linq;
 using System.Security.Cryptography;
 using InnoTrack.RDMS.Api.Security.Encryption;
 using InnoTrack.RDMS.Api.Security.Masking;
@@ -23,15 +25,24 @@ public sealed class AccountRecoveryOtpService(
         var normalizedEmail = NormalizeEmail(email);
         var code = GenerateCode();
         var expiresAtUtc = DateTime.UtcNow.Add(_otpLifetime);
+        var cacheKey = GetCacheKey(normalizedEmail);
 
-        cache.Set(GetCacheKey(normalizedEmail), new RecoveryOtpEntry
+        cache.Set(cacheKey, new RecoveryOtpEntry
         {
             EncryptedCode = encryptionService.Encrypt(code),
             ExpiresAtUtc = expiresAtUtc,
             FailedAttempts = 0,
         }, expiresAtUtc);
 
-        await SendEmailAsync(normalizedEmail, code, expiresAtUtc, cancellationToken);
+        try
+        {
+            await SendEmailAsync(normalizedEmail, code, expiresAtUtc, cancellationToken);
+        }
+        catch
+        {
+            cache.Remove(cacheKey);
+            throw;
+        }
 
         return new AccountRecoveryOtpChallenge(dataMaskingService.MaskEmail(normalizedEmail), expiresAtUtc);
     }
@@ -88,6 +99,7 @@ public sealed class AccountRecoveryOtpService(
         var fromEmail = configuration["Smtp:FromEmail"]?.Trim();
         var fromName = configuration["Smtp:FromName"]?.Trim();
         var enableSsl = configuration.GetValue<bool?>("Smtp:EnableSsl") ?? true;
+        var timeoutMs = configuration.GetValue<int?>("Smtp:TimeoutMs") ?? 10_000;
 
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(fromEmail))
         {
@@ -107,19 +119,118 @@ public sealed class AccountRecoveryOtpService(
 
         message.To.Add(new MailAddress(email));
 
-        using var smtpClient = new SmtpClient(host, port)
-        {
-            EnableSsl = enableSsl,
-            DeliveryMethod = SmtpDeliveryMethod.Network,
-        };
+        var portCandidates = BuildPortCandidates(port);
+        var hostCandidates = BuildHostCandidates(host);
+        Exception? lastConnectionException = null;
 
-        if (!string.IsNullOrWhiteSpace(username))
+        foreach (var hostCandidate in hostCandidates)
         {
-            smtpClient.Credentials = new NetworkCredential(username, password ?? string.Empty);
+            foreach (var portCandidate in portCandidates)
+            {
+                var useSsl = portCandidate == 465 || enableSsl;
+
+                try
+                {
+                    using var smtpClient = new SmtpClient(hostCandidate, portCandidate)
+                    {
+                        EnableSsl = useSsl,
+                        DeliveryMethod = SmtpDeliveryMethod.Network,
+                        Timeout = timeoutMs,
+                        UseDefaultCredentials = false,
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(username))
+                    {
+                        smtpClient.Credentials = new NetworkCredential(username, password ?? string.Empty);
+                    }
+
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await smtpClient.SendMailAsync(message, cancellationToken);
+                    return;
+                }
+                catch (SmtpException ex) when (IsConnectionFailure(ex))
+                {
+                    lastConnectionException = ex;
+                    logger.LogWarning(ex, "SMTP connection failed for host {Host} on port {Port}.", hostCandidate, portCandidate);
+                }
+                catch (SmtpException ex)
+                {
+                    logger.LogError(ex, "SMTP send failed for account recovery email.");
+                    throw new InvalidOperationException("We could not send the recovery code. Please try again later.");
+                }
+            }
         }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        await smtpClient.SendMailAsync(message, cancellationToken);
+        if (lastConnectionException is not null)
+        {
+            logger.LogError(lastConnectionException, "SMTP connection refused for host {Host} with ports {Ports}.", host, string.Join(",", portCandidates));
+        }
+
+        throw new InvalidOperationException("We could not connect to the email server. Please contact support.");
+    }
+
+    private static IReadOnlyList<int> BuildPortCandidates(int primaryPort)
+    {
+        var ports = new List<int>();
+        if (IsValidPort(primaryPort))
+        {
+            ports.Add(primaryPort);
+        }
+
+        if (primaryPort == 587)
+        {
+            ports.Add(465);
+        }
+        else if (primaryPort == 465)
+        {
+            ports.Add(587);
+        }
+
+        return ports.Distinct().ToArray();
+    }
+
+    private static IReadOnlyList<string> BuildHostCandidates(string host)
+    {
+        var hosts = new List<string> { host };
+
+        if (!IPAddress.TryParse(host, out _))
+        {
+            try
+            {
+                var ipv4 = Dns.GetHostAddresses(host)
+                    .FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetwork);
+
+                if (ipv4 is not null)
+                {
+                    hosts.Add(ipv4.ToString());
+                }
+            }
+            catch (SocketException)
+            {
+                // DNS failures should not prevent trying the original hostname.
+            }
+        }
+
+        return hosts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool IsConnectionFailure(SmtpException exception)
+    {
+        if (exception.InnerException is SocketException socketException)
+        {
+            return socketException.SocketErrorCode is SocketError.ConnectionRefused
+                or SocketError.TimedOut
+                or SocketError.HostNotFound
+                or SocketError.NetworkDown
+                or SocketError.NetworkUnreachable;
+        }
+
+        return false;
+    }
+
+    private static bool IsValidPort(int port)
+    {
+        return port is > 0 and <= 65_535;
     }
 
     private static string NormalizeEmail(string email)

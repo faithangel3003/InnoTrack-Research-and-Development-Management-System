@@ -117,15 +117,6 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-3 py-4">
-          {role === 'TeamMember' ? (
-            <div className="mb-5 rounded-2xl border border-sky-100 bg-sky-50 px-3 py-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-sky-700">Focused Access</p>
-              <p className="mt-2 text-sm leading-5 text-sky-900">
-                Your workspace shows only the modules available to Team Members.
-              </p>
-            </div>
-          ) : null}
-
           {sectionGroups.map((section) => {
             if (section.items.length === 0) {
               return null
