@@ -1,0 +1,14 @@
+[build]
+builder = "nixpacks"
+
+[build.env]
+DOTNET_CLI_TELEMETRY_OPTOUT = "1"
+
+[phases.build]
+cmds = [
+  "dotnet restore",
+  "dotnet publish -c Release -o out"
+]
+
+[start]
+cmd = "dotnet InnoTrack.RDMS.Api.dll"

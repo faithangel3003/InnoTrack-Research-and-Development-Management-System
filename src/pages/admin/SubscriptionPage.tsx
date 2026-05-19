@@ -7,7 +7,6 @@ import * as userApi from '../../api/userApi'
 import type { Subscription } from '../../types/superAdmin'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../context/ToastContext'
-import { countActiveProjects } from '../../utils/projectMetrics'
 
 type PlanName = 'Starter' | 'Professional' | 'Enterprise'
 
@@ -162,7 +161,6 @@ export function SubscriptionPage() {
   const pricing = subscription?.amount ?? { Starter: 999, Professional: 2499, Enterprise: 4999 }[plan]
   const seatLimit = planLimits[plan].seats
   const projectLimit = planLimits[plan].projects
-  const activeProjects = useMemo(() => countActiveProjects(projects), [projects])
   const totalProjects = projects.length
   const nextRenewal = subscription?.endDate ? format(new Date(subscription.endDate), 'MMMM d, yyyy') : '-'
   const startDate = subscription?.startDate ? format(new Date(subscription.startDate), 'MMMM d, yyyy') : '-'

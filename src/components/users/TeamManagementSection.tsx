@@ -55,7 +55,6 @@ export function TeamManagementSection() {
     deletingId,
     error,
     clearError,
-    refreshTeams,
     createTeam,
     updateTeam,
     deleteTeam,

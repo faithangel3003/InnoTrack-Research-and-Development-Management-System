@@ -29,6 +29,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -80,7 +81,8 @@ builder.Services.AddControllers(options =>
         options.SuppressModelStateInvalidFilter = true;
     });
 
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 builder.Services.AddSignalR();
 builder.Services.AddMemoryCache();
 builder.Services.AddHttpClient("CloudinaryDocuments", client =>
@@ -179,8 +181,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
     ?? throw new InvalidOperationException("DefaultConnection is not configured");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
-
+{
+    options.UseMySql(
+        connectionString,
+        new MySqlServerVersion(new Version(8, 0, 36))
+    );
+});
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -334,10 +340,9 @@ app.Use(async (context, next) =>
 
     await next();
 });
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-}
+
+app.UseSwagger();
+app.UseSwaggerUI();
 
 app.UseSerilogRequestLogging();
 if (!app.Environment.IsDevelopment())
@@ -353,10 +358,17 @@ app.UseAuthentication();
 app.UseMiddleware<RoleAuthorizationMiddleware>();
 app.UseAuthorization();
 
+app.MapGet("/", () => "InnoTrack API is running");
+
 app.MapControllers();
 app.MapHub<CollaborationHub>("/hubs/collaboration");
 
-await SuperAdminSchemaBootstrapper.InitializeAsync(app.Services, app.Logger);
+if (app.Environment.IsDevelopment())
+{
+    await SuperAdminSchemaBootstrapper.InitializeAsync(app.Services, app.Logger);
+}
+
+app.MapGet("/", () => "InnoTrack API is running");
 
 app.Run();
 

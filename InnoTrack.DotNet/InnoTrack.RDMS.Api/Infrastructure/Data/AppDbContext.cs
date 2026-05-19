@@ -2,6 +2,7 @@ using InnoTrack.RDMS.Api.Domain.Entities;
 using InnoTrack.RDMS.Api.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Pomelo.EntityFrameworkCore.MySql.Infrastructure;
 
 namespace InnoTrack.RDMS.Api.Infrastructure.Data;
 
